@@ -20,7 +20,7 @@
 
 - `.agents/skills/caveman/` 是项目级 skill（来源 `JuliusBrussee/caveman`），`skills-lock.json` 锁定来源和哈希。
 - 需要精简输出时调用 `caveman` skill（或 `/caveman`）；说 “stop caveman” 或 “normal mode” 退出。除非用户要求，不要默认启用。
-- 更新：`npx -y skills@latest update`；重新安装：`npx -y skills@latest add JuliusBrussee/caveman -s caveman -a opencode --copy -y`。
+- 更新：`npx -y skills@latest update`。注意更新会整目录重拷贝 `.agents/skills/caveman/`，可能静默覆盖本地新增的 `LICENSE`、`NOTICE` 和 README 修改；更新后检查并补回。
 
 ## MCP
 
