@@ -2,10 +2,39 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Any
 
+from dotenv import dotenv_values, find_dotenv
+
 from .agent import DEFAULT_MODEL, build_agent
+
+ENV_ALLOWLIST = {
+    "ANTHROPIC_API_KEY",
+    "AZURE_OPENAI_API_KEY",
+    "DEEPSEEK_API_KEY",
+    "FIREWORKS_API_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GROQ_API_KEY",
+    "MINICODE_MODEL",
+    "MISTRAL_API_KEY",
+    "OPENAI_API_KEY",
+    "OPENROUTER_API_KEY",
+    "TOGETHER_API_KEY",
+}
+
+
+def load_env() -> str | None:
+    """Load safe values from the nearest .env without overriding the shell."""
+    path = find_dotenv(usecwd=True)
+    if not path:
+        return None
+    for key, value in dotenv_values(path).items():
+        if value and value.strip() and key in ENV_ALLOWLIST:
+            os.environ.setdefault(key, value.strip())
+    return path
 
 
 def message_text(message: Any) -> str:
@@ -93,6 +122,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    env_path = load_env()
+    if args.debug and env_path:
+        print(f"minicode: loaded env from {env_path}", file=sys.stderr)
 
     prompt = " ".join(args.prompt).strip()
     if not prompt and not sys.stdin.isatty():
