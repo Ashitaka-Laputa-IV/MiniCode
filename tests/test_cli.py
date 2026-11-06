@@ -8,6 +8,7 @@ from rich.console import Console
 
 from minicode.cli import (
     build_parser,
+    interactive_loop,
     load_env,
     message_text,
     print_final,
@@ -84,6 +85,12 @@ def test_parser_defaults() -> None:
     assert args.model is None
     assert args.root == "."
     assert args.debug is False
+    assert args.interactive is False
+
+
+def test_parser_interactive() -> None:
+    assert build_parser().parse_args(["-i"]).interactive is True
+    assert build_parser().parse_args(["--interactive"]).interactive is True
 
 
 def test_parser_root_and_model() -> None:
@@ -154,3 +161,34 @@ def test_load_env_strips_whitespace(
 
     load_env()
     assert os.environ["DEEPSEEK_API_KEY"] == "sk-test"
+
+
+class FakeAgent:
+    def __init__(self) -> None:
+        self.calls: list[tuple[dict, dict | None]] = []
+
+    def stream(self, input, config=None, stream_mode=None):
+        self.calls.append((input, config))
+        yield {
+            "model": {
+                "messages": [
+                    SimpleNamespace(type="ai", tool_calls=[], content="done")
+                ]
+            }
+        }
+
+
+def test_interactive_loop_runs_turn(monkeypatch: pytest.MonkeyPatch) -> None:
+    inputs = iter(["hello", "/exit"])
+    monkeypatch.setattr(Console, "input", lambda self, prompt="": next(inputs))
+
+    agent = FakeAgent()
+    output_buffer = io.StringIO()
+    output = Console(file=output_buffer, force_terminal=False, soft_wrap=True)
+    progress = Console(file=io.StringIO(), force_terminal=False, soft_wrap=True)
+    config = {"configurable": {"thread_id": "test"}}
+
+    assert interactive_loop(agent, progress, output, config, False) == 0
+    assert len(agent.calls) == 1
+    assert agent.calls[0][1] == config
+    assert "done" in output_buffer.getvalue()

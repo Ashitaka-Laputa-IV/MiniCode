@@ -2,7 +2,7 @@
 
 Minimal coding agent built on the [Deep Agents](https://docs.langchain.com/oss/python/deepagents/overview) harness.
 
-It runs one task against a workspace using the harness's filesystem tools, shell execution, planning, and subagents.
+It runs a task or an interactive session against a workspace using the harness's filesystem tools, shell execution, planning, and subagents.
 
 ## Requirements
 
@@ -38,11 +38,23 @@ export DEEPSEEK_API_KEY="..."
 
 ## Usage
 
+One-shot:
+
 ```bash
 uv run minicode "explain the repository structure"
 uv run minicode --root ../other-project "fix the failing tests"
 uv run python -m minicode "summarize AGENTS.md"
 ```
+
+Interactive REPL (`minicode` with no prompt also starts it on a TTY):
+
+```bash
+uv run minicode
+uv run minicode -i
+```
+
+Inside the REPL, use `/help`, `/exit`, or `/quit`. Conversation state is kept
+in memory for the session and is lost when the process exits.
 
 Use another provider/model with `--model` or `MINICODE_MODEL`:
 

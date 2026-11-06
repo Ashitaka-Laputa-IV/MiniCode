@@ -817,6 +817,7 @@ source = { editable = "." }
 dependencies = [
     { name = "deepagents" },
     { name = "langchain-deepseek" },
+    { name = "langgraph" },
     { name = "python-dotenv" },
     { name = "rich" },
 ]
@@ -830,6 +831,7 @@ dev = [
 requires-dist = [
     { name = "deepagents", specifier = ">=0.7.34" },
     { name = "langchain-deepseek", specifier = ">=1.1.1" },
+    { name = "langgraph", specifier = ">=1.2.20" },
     { name = "python-dotenv", specifier = ">=1.2.4" },
     { name = "rich", specifier = ">=15.0.0" },
 ]
