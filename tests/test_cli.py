@@ -88,3 +88,16 @@ def test_load_env_ignores_empty_values(
 
     load_env()
     assert "MINICODE_MODEL" not in os.environ
+
+
+def test_load_env_strips_whitespace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / ".env").write_text(
+        'DEEPSEEK_API_KEY="  sk-test  "\n', encoding="utf-8"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+
+    load_env()
+    assert os.environ["DEEPSEEK_API_KEY"] == "sk-test"

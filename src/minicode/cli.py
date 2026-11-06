@@ -33,7 +33,7 @@ def load_env() -> str | None:
         return None
     for key, value in dotenv_values(path).items():
         if value and value.strip() and key in ENV_ALLOWLIST:
-            os.environ.setdefault(key, value)
+            os.environ.setdefault(key, value.strip())
     return path
 
 
