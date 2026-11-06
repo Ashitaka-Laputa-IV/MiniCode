@@ -3,17 +3,20 @@
 ## 仓库现状
 
 - Python 项目，使用 uv 管理（`pyproject.toml`、`uv.lock`、`.python-version` 固定 3.13）。
-- 源码在 `src/minicode/`，当前只有占位 `main()`；尚无测试、lint 或 CI。
+- 基于 Deep Agents harness：`src/minicode/agent.py` 用 `create_deep_agent` + `LocalShellBackend`；`src/minicode/cli.py` 是入口。有 pytest 测试，无 lint 或 CI。
+- Agent 拥有当前工作区的文件读写和 shell 执行权限，没有 HITL 审批；shell 环境变量经过过滤，不继承 provider key。默认模型 `deepseek:deepseek-chat`，用 `--model` 或 `MINICODE_MODEL` 覆盖。
 - 一律使用 uv，不要用 `pip` 或全局 Python；虚拟环境 `.venv/` 由 uv 管理，已加入 `.gitignore`。
 - `dev` 已推送到 `origin`；PR 基分支为 `dev`，功能分支从 `origin/dev` 切出。
 
 ## 常用命令
 
 - 同步依赖：`uv sync`
-- 运行入口：`uv run minicode`
+- 运行 agent：`uv run minicode "<task>"`
+- 其他入口：`uv run python -m minicode "<task>"`
+- 模型：`--model <provider:model>` 或环境变量 `MINICODE_MODEL`；默认 `deepseek:deepseek-chat`，需要 `DEEPSEEK_API_KEY`
 - 添加依赖：`uv add <pkg>`；开发依赖：`uv add --dev <pkg>`
 - 更新锁文件：`uv lock`（升级用 `uv lock --upgrade`）
-- 运行单个测试（有测试后）：`uv run pytest path/to/test.py::test_name`
+- 运行单个测试：`uv run pytest tests/test_cli.py::test_parser_defaults`；全量：`uv run pytest -q`
 - 临时脚本：`uv run python -c "..."`
 
 ## 项目技能
