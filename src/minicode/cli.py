@@ -5,6 +5,7 @@ import json
 import os
 import sys
 from typing import Any
+from uuid import uuid4
 
 from dotenv import dotenv_values, find_dotenv
 from rich.console import Console
@@ -113,6 +114,103 @@ def print_final(message: Any, output: Console) -> None:
         output.print(text, markup=False, highlight=False, soft_wrap=True)
 
 
+def print_error(console: Console, exc: Exception) -> None:
+    text = str(exc).lower()
+    if (
+        "api key" in text
+        or "api_key" in text
+        or "authentication" in text
+        or "unauthorized" in text
+    ):
+        console.print(
+            "[red]minicode:[/] provider API key is missing or invalid. "
+            "Set it for the selected model, or pass --model for another provider."
+        )
+    else:
+        console.print(f"[red]minicode:[/] {escape(str(exc))}")
+
+
+def run_turn(
+    agent: Any,
+    prompt: str,
+    progress: Console,
+    config: dict[str, Any],
+) -> Any:
+    """Run one user turn and return the final AI message."""
+    final_message = None
+    for update in agent.stream(
+        {"messages": [{"role": "user", "content": prompt}]},
+        config=config,
+        stream_mode="updates",
+    ):
+        message = print_update(update, progress)
+        if message is not None:
+            final_message = message
+    return final_message
+
+
+def make_config() -> dict[str, Any]:
+    return {"configurable": {"thread_id": f"minicode-{uuid4().hex}"}}
+
+
+def reset_thread(config: dict[str, Any], agent: Any) -> None:
+    old_thread = config["configurable"]["thread_id"]
+    config["configurable"]["thread_id"] = f"minicode-{uuid4().hex}"
+    checkpointer = getattr(agent, "checkpointer", None)
+    if checkpointer is not None:
+        checkpointer.delete_thread(old_thread)
+
+
+def interactive_loop(
+    agent: Any,
+    progress: Console,
+    output: Console,
+    config: dict[str, Any],
+    debug: bool,
+) -> int:
+    """Run a simple REPL until EOF or /exit."""
+    output.print(
+        "[bold]Interactive mode[/] [dim]Type /help for commands, /exit to quit.[/]"
+    )
+
+    while True:
+        try:
+            prompt = output.input("[bold cyan]minicode>[/] ")
+        except (EOFError, KeyboardInterrupt):
+            output.print()
+            return 0
+
+        prompt = prompt.strip()
+        if not prompt:
+            continue
+        if prompt in {"/exit", "/quit"}:
+            return 0
+        if prompt == "/help":
+            output.print("[dim]Commands: /help, /reset, /exit, /quit[/]")
+            continue
+        if prompt == "/reset":
+            reset_thread(config, agent)
+            output.print("[dim]Context cleared.[/]")
+            continue
+
+        try:
+            final_message = run_turn(agent, prompt, progress, config)
+        except KeyboardInterrupt:
+            reset_thread(config, agent)
+            progress.print("[yellow]Interrupted. Context reset.[/]")
+            continue
+        except Exception as exc:
+            if debug:
+                raise
+            reset_thread(config, agent)
+            print_error(progress, exc)
+            progress.print("[yellow]Context reset after the failed turn.[/]")
+            continue
+
+        if final_message is not None:
+            print_final(final_message, output)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="minicode",
@@ -134,6 +232,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="enable Deep Agents debug logging",
     )
+    parser.add_argument(
+        "-i",
+        "--interactive",
+        action="store_true",
+        help="start an interactive REPL",
+    )
     return parser
 
 
@@ -147,9 +251,11 @@ def main(argv: list[str] | None = None) -> int:
         progress.print(f"[dim]loaded env from[/] {escape(env_path)}")
 
     prompt = " ".join(args.prompt).strip()
-    if not prompt and not sys.stdin.isatty():
+    if prompt and args.interactive:
+        parser.error("--interactive cannot be combined with a prompt")
+    if not prompt and not args.interactive and not sys.stdin.isatty():
         prompt = sys.stdin.read().strip()
-    if not prompt:
+    if not prompt and not args.interactive and not sys.stdin.isatty():
         parser.error("provide a task, e.g. minicode \"fix the failing test\"")
 
     try:
@@ -159,36 +265,26 @@ def main(argv: list[str] | None = None) -> int:
             progress.print(f"[dim]workspace[/] {escape(str(root_path))}")
             progress.print(f"[dim]model[/] {escape(model_name)}")
 
-        agent = build_agent(model=args.model, root=args.root, debug=args.debug)
-        final_message = None
-        for update in agent.stream(
-            {"messages": [{"role": "user", "content": prompt}]},
-            stream_mode="updates",
-        ):
-            message = print_update(update, progress)
-            if message is not None:
-                final_message = message
+        agent = build_agent(
+            model=args.model,
+            root=args.root,
+            debug=args.debug,
+            checkpoint=not bool(prompt),
+        )
+        config = make_config()
+
+        if prompt:
+            final_message = run_turn(agent, prompt, progress, config)
+            if final_message is not None:
+                print_final(final_message, output)
+            return 0
+
+        return interactive_loop(agent, progress, output, config, args.debug)
     except KeyboardInterrupt:
         progress.print("\n[yellow]Interrupted.[/]")
         return 130
     except Exception as exc:
         if args.debug:
             raise
-        text = str(exc).lower()
-        if (
-            "api key" in text
-            or "api_key" in text
-            or "authentication" in text
-            or "unauthorized" in text
-        ):
-            progress.print(
-                "[red]minicode:[/] provider API key is missing or invalid. "
-                "Set it for the selected model, or pass --model for another provider."
-            )
-        else:
-            progress.print(f"[red]minicode:[/] {escape(str(exc))}")
+        print_error(progress, exc)
         return 1
-
-    if final_message is not None:
-        print_final(final_message, output)
-    return 0

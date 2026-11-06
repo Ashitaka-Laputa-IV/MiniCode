@@ -11,8 +11,10 @@
 ## 常用命令
 
 - 同步依赖：`uv sync`
-- 运行 agent：`uv run minicode "<task>"`
+- 交互式 REPL：`uv run minicode`（TTY 下无 prompt 自动进入）或 `uv run minicode -i`；`/help`、`/reset`、`/exit`、`/quit`
+- 单次运行：`uv run minicode "<task>"`
 - 其他入口：`uv run python -m minicode "<task>"`
+- REPL 会话状态在内存中，进程退出即丢失；失败/中断的回合会重置 thread，避免恢复未完成节点
 - 模型：`--model <provider:model>` 或环境变量 `MINICODE_MODEL`；默认 `deepseek:deepseek-chat`，需要 `DEEPSEEK_API_KEY`
 - 环境变量：CLI 自动加载当前目录或祖先目录的 `.env`，但只应用 `MINICODE_MODEL` 和已知 provider key，忽略 base URL/endpoint 类变量；shell 已有变量优先。`.env` 已被忽略，提交 `.env.example`，不要把真实 key 写入版本库
 - 添加依赖：`uv add <pkg>`；开发依赖：`uv add --dev <pkg>`

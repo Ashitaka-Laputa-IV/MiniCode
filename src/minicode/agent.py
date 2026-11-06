@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from deepagents import create_deep_agent
 from deepagents.backends import LocalShellBackend
+from langgraph.checkpoint.memory import MemorySaver
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -103,6 +104,7 @@ def build_agent(
     model: str | None = None,
     root: str | Path | None = None,
     debug: bool = False,
+    checkpoint: bool = False,
 ) -> "CompiledStateGraph":
     """Build the minimal Deep Agents coding harness for one workspace."""
     root_path = resolve_root(root)
@@ -120,4 +122,5 @@ def build_agent(
         backend=backend,
         debug=debug,
         name="minicode",
+        checkpointer=MemorySaver() if checkpoint else None,
     )
