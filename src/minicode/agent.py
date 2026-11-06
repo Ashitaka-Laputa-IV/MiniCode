@@ -105,8 +105,8 @@ def build_agent(
     debug: bool = False,
 ) -> "CompiledStateGraph":
     """Build the minimal Deep Agents coding harness for one workspace."""
-    root_path = root if isinstance(root, Path) else resolve_root(root)
-    model_name = model if model is not None else resolve_model(model)
+    root_path = resolve_root(root)
+    model_name = resolve_model(model)
 
     backend = LocalShellBackend(
         root_dir=root_path,

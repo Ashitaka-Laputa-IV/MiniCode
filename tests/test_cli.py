@@ -60,11 +60,12 @@ def test_print_update_renders_tool_activity() -> None:
     assert "/a /b" in text
 
 
-def test_print_final_uses_raw_text_when_not_terminal(capsys) -> None:
-    console = Console(force_terminal=False)
+def test_print_final_uses_raw_text_when_not_terminal() -> None:
+    buffer = io.StringIO()
+    console = Console(file=buffer, force_terminal=False, soft_wrap=True)
     print_final(SimpleNamespace(content="# Head\n\nbody"), console)
 
-    assert capsys.readouterr().out == "# Head\n\nbody\n"
+    assert buffer.getvalue() == "# Head\n\nbody\n"
 
 
 def test_print_final_renders_markdown_on_terminal() -> None:

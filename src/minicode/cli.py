@@ -110,7 +110,7 @@ def print_final(message: Any, output: Console) -> None:
     if output.is_terminal:
         output.print(Markdown(text))
     else:
-        print(text)
+        output.print(text, markup=False, highlight=False, soft_wrap=True)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -153,13 +153,13 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("provide a task, e.g. minicode \"fix the failing test\"")
 
     try:
-        model_name = resolve_model(args.model)
-        root_path = resolve_root(args.root)
         if args.debug:
+            model_name = resolve_model(args.model)
+            root_path = resolve_root(args.root)
             progress.print(f"[dim]workspace[/] {escape(str(root_path))}")
             progress.print(f"[dim]model[/] {escape(model_name)}")
 
-        agent = build_agent(model=model_name, root=root_path, debug=args.debug)
+        agent = build_agent(model=args.model, root=args.root, debug=args.debug)
         final_message = None
         for update in agent.stream(
             {"messages": [{"role": "user", "content": prompt}]},
