@@ -39,7 +39,7 @@ uv run python -m minicode "summarize AGENTS.md"
 Use another provider/model with `--model` or `MINICODE_MODEL`:
 
 ```bash
-uv run minicode --model anthropic:claude-sonnet-5 "review this change"
+uv run minicode --model deepseek:deepseek-reasoner "review this change"
 ```
 
 Install that provider's integration package first, for example `uv add langchain-anthropic` or `uv add langchain-openai`.
@@ -47,9 +47,13 @@ Install that provider's integration package first, for example `uv add langchain
 ## Safety
 
 The agent uses `LocalShellBackend`: it can read and write files and run arbitrary
-shell commands with your user permissions. Use it only in workspaces you trust.
-The system prompt asks it to stay in the workspace and confirm destructive
-commands, but this is not a hard sandbox.
+shell commands with your user permissions. There is no human-in-the-loop
+approval loop, so destructive commands can run unattended. Use it only in
+workspaces you trust and only for tasks you are willing to let run.
+
+Shell commands receive a filtered environment: common OS/PATH/temp variables
+plus Python and uv paths. Provider API keys are not inherited by the agent's
+shell commands.
 
 ## Project tooling
 

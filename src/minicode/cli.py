@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import argparse
-import os
+import json
 import sys
 from typing import Any
 
-from .agent import DEFAULT_MODEL, build_agent, resolve_model
+from .agent import DEFAULT_MODEL, build_agent
 
 
 def message_text(message: Any) -> str:
     """Return the text content of a LangChain message."""
-    content = getattr(message, "content", message)
+    if isinstance(message, dict):
+        content = message.get("content", message)
+    else:
+        content = getattr(message, "content", message)
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -24,6 +27,43 @@ def message_text(message: Any) -> str:
                     parts.append(str(text))
         return "\n".join(parts)
     return str(content)
+
+
+def short_json(value: Any, limit: int = 160) -> str:
+    try:
+        text = json.dumps(value, ensure_ascii=False, default=str)
+    except TypeError:
+        text = str(value)
+    return text if len(text) <= limit else text[: limit - 3] + "..."
+
+
+def print_update(update: Any) -> Any:
+    """Print tool activity from one stream update; return the last AI message."""
+    if not isinstance(update, dict):
+        return None
+
+    final = None
+    for node_update in update.values():
+        if not isinstance(node_update, dict):
+            continue
+        messages = node_update.get("messages")
+        if not isinstance(messages, list):
+            continue
+
+        for message in messages:
+            tool_calls = getattr(message, "tool_calls", None) or []
+            if tool_calls:
+                for call in tool_calls:
+                    name = call.get("name", "tool") if isinstance(call, dict) else "tool"
+                    args = call.get("args", {}) if isinstance(call, dict) else {}
+                    print(f"-> {name} {short_json(args)}", file=sys.stderr, flush=True)
+            elif getattr(message, "type", None) == "tool":
+                name = getattr(message, "name", "tool")
+                text = message_text(message).strip().replace("\n", " ")
+                print(f"<- {name}: {text[:200]}", file=sys.stderr, flush=True)
+            elif getattr(message, "type", None) == "ai":
+                final = message
+    return final
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -61,25 +101,15 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("provide a task, e.g. minicode \"fix the failing test\"")
 
     try:
-        model_name = resolve_model(args.model)
-        provider_keys = {
-            "anthropic:": "ANTHROPIC_API_KEY",
-            "deepseek:": "DEEPSEEK_API_KEY",
-            "openai:": "OPENAI_API_KEY",
-        }
-        for prefix, env_name in provider_keys.items():
-            if model_name.startswith(prefix) and not os.getenv(env_name):
-                print(
-                    f"minicode: {env_name} is not set. "
-                    f"Export it, or pass --model for another provider.",
-                    file=sys.stderr,
-                )
-                return 1
-
-        agent = build_agent(model=model_name, root=args.root, debug=args.debug)
-        result = agent.invoke(
-            {"messages": [{"role": "user", "content": prompt}]}
-        )
+        agent = build_agent(model=args.model, root=args.root, debug=args.debug)
+        final_message = None
+        for update in agent.stream(
+            {"messages": [{"role": "user", "content": prompt}]},
+            stream_mode="updates",
+        ):
+            message = print_update(update)
+            if message is not None:
+                final_message = message
     except KeyboardInterrupt:
         print("\nInterrupted.", file=sys.stderr)
         return 130
@@ -87,9 +117,19 @@ def main(argv: list[str] | None = None) -> int:
         if args.debug:
             raise
         print(f"minicode: {exc}", file=sys.stderr)
+        text = str(exc).lower()
+        if (
+            "api key" in text
+            or "api_key" in text
+            or "authentication" in text
+            or "unauthorized" in text
+        ):
+            print(
+                "minicode: check the provider API key for the selected model.",
+                file=sys.stderr,
+            )
         return 1
 
-    messages = result.get("messages", [])
-    if messages:
-        print(message_text(messages[-1]))
+    if final_message is not None:
+        print(message_text(final_message))
     return 0

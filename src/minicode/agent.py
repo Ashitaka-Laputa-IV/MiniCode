@@ -2,26 +2,92 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from deepagents import create_deep_agent
 from deepagents.backends import LocalShellBackend
+from langchain.chat_models import init_chat_model
+
+if TYPE_CHECKING:
+    from langgraph.graph.state import CompiledStateGraph
 
 DEFAULT_MODEL = "deepseek:deepseek-chat"
+
+SHELL_ENV_ALLOWLIST = {
+    "ALLUSERSPROFILE",
+    "APPDATA",
+    "COMSPEC",
+    "HOME",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "LANG",
+    "LC_ALL",
+    "LOCALAPPDATA",
+    "LOGONSERVER",
+    "NUMBER_OF_PROCESSORS",
+    "OS",
+    "PATH",
+    "PATHEXT",
+    "PROCESSOR_ARCHITECTURE",
+    "PROGRAMDATA",
+    "PROGRAMFILES",
+    "PROGRAMFILES(X86)",
+    "PROGRAMW6432",
+    "PYTHONIOENCODING",
+    "PYTHONUTF8",
+    "SESSIONNAME",
+    "SSH_AUTH_SOCK",
+    "SYSTEMDRIVE",
+    "SYSTEMROOT",
+    "TEMP",
+    "TERM",
+    "TMP",
+    "USERDOMAIN",
+    "USERNAME",
+    "USERPROFILE",
+    "UV_CACHE_DIR",
+    "UV_PROJECT_ENVIRONMENT",
+    "VIRTUAL_ENV",
+    "WINDIR",
+}
+
+SYSTEM_PROMPT = """\
+You are MiniCode, a coding agent.
+
+File tools use a virtual filesystem: `/` is the workspace root. Use virtual
+paths such as `/src/minicode/cli.py`. Never use Windows drive paths like
+`C:\\...` with file tools.
+
+Shell commands run with the workspace as the current directory. Use relative
+paths for shell commands.
+
+Read files before changing them. Make focused changes. Run the project's tests,
+lint, or build commands when they exist.
+
+Destructive and irreversible shell commands run without confirmation. Only run
+them when the user explicitly asks. When finished, summarize what changed and
+what you verified.
+"""
 
 
 def resolve_model(model: str | None = None) -> str:
     return model or os.getenv("MINICODE_MODEL", DEFAULT_MODEL)
 
-SYSTEM_PROMPT = """\
-You are MiniCode, a coding agent working in: {root}
 
-Use the available filesystem and shell tools to inspect, modify, and verify code.
-Read files before changing them. Make focused changes. Run the project's tests,
-lint, or build commands when they exist.
+def resolve_root(root: str | Path | None = None) -> Path:
+    path = Path(root or Path.cwd()).expanduser().resolve()
+    if not path.is_dir():
+        raise ValueError(f"workspace root is not a directory: {path}")
+    return path
 
-Stay inside the workspace. Ask before running destructive or irreversible
-commands. When finished, summarize what changed and what you verified.
-"""
+
+def shell_env() -> dict[str, str]:
+    """Return only the environment variables needed to run shell commands."""
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if key.upper() in SHELL_ENV_ALLOWLIST
+    }
 
 
 def build_agent(
@@ -29,19 +95,20 @@ def build_agent(
     model: str | None = None,
     root: str | Path | None = None,
     debug: bool = False,
-):
+) -> "CompiledStateGraph":
     """Build the minimal Deep Agents coding harness for one workspace."""
-    root_path = Path(root or Path.cwd()).resolve()
+    root_path = resolve_root(root)
     model_name = resolve_model(model)
 
     backend = LocalShellBackend(
         root_dir=root_path,
-        inherit_env=True,
+        env=shell_env(),
+        inherit_env=False,
     )
 
     return create_deep_agent(
-        model=model_name,
-        system_prompt=SYSTEM_PROMPT.format(root=root_path),
+        model=init_chat_model(model_name),
+        system_prompt=SYSTEM_PROMPT,
         backend=backend,
         debug=debug,
         name="minicode",
