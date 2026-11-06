@@ -164,11 +164,20 @@ def test_load_env_strips_whitespace(
     assert os.environ["DEEPSEEK_API_KEY"] == "sk-test"
 
 
+class FakeCheckpointer:
+    def __init__(self) -> None:
+        self.deleted: list[str] = []
+
+    def delete_thread(self, thread_id: str) -> None:
+        self.deleted.append(thread_id)
+
+
 class FakeAgent:
     def __init__(self, fail_on_call: int | None = None) -> None:
         self.calls: list[tuple[dict, dict | None]] = []
         self.thread_ids: list[str] = []
         self.fail_on_call = fail_on_call
+        self.checkpointer = FakeCheckpointer()
 
     def stream(self, input, config=None, stream_mode=None):
         self.calls.append((input, config))
@@ -212,6 +221,24 @@ def test_interactive_loop_reset_command(monkeypatch: pytest.MonkeyPatch) -> None
     interactive_loop(agent, progress, output, config, False)
     assert len(agent.thread_ids) == 2
     assert agent.thread_ids[0] != agent.thread_ids[1]
+    assert agent.checkpointer.deleted == [agent.thread_ids[0]]
+
+
+def test_interactive_loop_keeps_thread_for_successful_turns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inputs = iter(["one", "two", "/exit"])
+    monkeypatch.setattr(Console, "input", lambda self, prompt="": next(inputs))
+
+    agent = FakeAgent()
+    output = Console(file=io.StringIO(), force_terminal=False, soft_wrap=True)
+    progress = Console(file=io.StringIO(), force_terminal=False, soft_wrap=True)
+    config = {"configurable": {"thread_id": "test"}}
+
+    interactive_loop(agent, progress, output, config, False)
+    assert len(agent.thread_ids) == 2
+    assert agent.thread_ids[0] == agent.thread_ids[1]
+    assert agent.checkpointer.deleted == []
 
 
 def test_interactive_loop_resets_thread_after_error(
@@ -229,6 +256,7 @@ def test_interactive_loop_resets_thread_after_error(
     interactive_loop(agent, progress, output, config, False)
     assert len(agent.thread_ids) == 2
     assert agent.thread_ids[0] != agent.thread_ids[1]
+    assert agent.checkpointer.deleted == [agent.thread_ids[0]]
     assert "Context reset" in progress_buffer.getvalue()
 
 

@@ -153,8 +153,12 @@ def make_config() -> dict[str, Any]:
     return {"configurable": {"thread_id": f"minicode-{uuid4().hex}"}}
 
 
-def reset_thread(config: dict[str, Any]) -> None:
+def reset_thread(config: dict[str, Any], agent: Any) -> None:
+    old_thread = config["configurable"]["thread_id"]
     config["configurable"]["thread_id"] = f"minicode-{uuid4().hex}"
+    checkpointer = getattr(agent, "checkpointer", None)
+    if checkpointer is not None:
+        checkpointer.delete_thread(old_thread)
 
 
 def interactive_loop(
@@ -185,20 +189,20 @@ def interactive_loop(
             output.print("[dim]Commands: /help, /reset, /exit, /quit[/]")
             continue
         if prompt == "/reset":
-            reset_thread(config)
+            reset_thread(config, agent)
             output.print("[dim]Context cleared.[/]")
             continue
 
         try:
             final_message = run_turn(agent, prompt, progress, config)
         except KeyboardInterrupt:
-            reset_thread(config)
+            reset_thread(config, agent)
             progress.print("[yellow]Interrupted. Context reset.[/]")
             continue
         except Exception as exc:
             if debug:
                 raise
-            reset_thread(config)
+            reset_thread(config, agent)
             print_error(progress, exc)
             progress.print("[yellow]Context reset after the failed turn.[/]")
             continue
