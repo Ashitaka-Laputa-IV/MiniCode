@@ -1,6 +1,14 @@
+import os
+
 import pytest
 
-from minicode.agent import DEFAULT_MODEL, resolve_model, resolve_root, shell_env
+from minicode.agent import (
+    DEFAULT_MODEL,
+    resolve_model,
+    resolve_root,
+    shell_env,
+    shell_hint,
+)
 
 
 def test_resolve_model_default(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -34,3 +42,11 @@ def test_shell_env_excludes_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
     env = shell_env()
     assert "DEEPSEEK_API_KEY" not in env
     assert any(key.upper() == "PATH" for key in env)
+
+
+def test_shell_hint_matches_platform() -> None:
+    hint = shell_hint()
+    if os.name == "nt":
+        assert "cmd.exe" in hint
+    else:
+        assert "POSIX" in hint

@@ -116,7 +116,6 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:
         if args.debug:
             raise
-        print(f"minicode: {exc}", file=sys.stderr)
         text = str(exc).lower()
         if (
             "api key" in text
@@ -125,9 +124,12 @@ def main(argv: list[str] | None = None) -> int:
             or "unauthorized" in text
         ):
             print(
-                "minicode: check the provider API key for the selected model.",
+                "minicode: provider API key is missing or invalid. "
+                "Set it for the selected model, or pass --model for another provider.",
                 file=sys.stderr,
             )
+        else:
+            print(f"minicode: {exc}", file=sys.stderr)
         return 1
 
     if final_message is not None:

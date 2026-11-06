@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 from deepagents import create_deep_agent
 from deepagents.backends import LocalShellBackend
-from langchain.chat_models import init_chat_model
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -59,7 +58,7 @@ paths such as `/src/minicode/cli.py`. Never use Windows drive paths like
 `C:\\...` with file tools.
 
 Shell commands run with the workspace as the current directory. Use relative
-paths for shell commands.
+paths for shell commands. {shell}
 
 Read files before changing them. Make focused changes. Run the project's tests,
 lint, or build commands when they exist.
@@ -68,6 +67,15 @@ Destructive and irreversible shell commands run without confirmation. Only run
 them when the user explicitly asks. When finished, summarize what changed and
 what you verified.
 """
+
+
+def shell_hint() -> str:
+    if os.name == "nt":
+        return (
+            "On Windows the shell is cmd.exe: use cmd syntax and %VAR% expansion, "
+            "not POSIX sh syntax."
+        )
+    return "The shell is POSIX sh: use POSIX syntax and $VAR expansion."
 
 
 def resolve_model(model: str | None = None) -> str:
@@ -107,8 +115,8 @@ def build_agent(
     )
 
     return create_deep_agent(
-        model=init_chat_model(model_name),
-        system_prompt=SYSTEM_PROMPT,
+        model=model_name,
+        system_prompt=SYSTEM_PROMPT.format(shell=shell_hint()),
         backend=backend,
         debug=debug,
         name="minicode",
