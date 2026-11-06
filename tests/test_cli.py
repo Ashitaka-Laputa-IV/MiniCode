@@ -1,9 +1,19 @@
+import io
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from rich.console import Console
 
-from minicode.cli import build_parser, load_env, message_text, short_json
+from minicode.cli import (
+    build_parser,
+    load_env,
+    message_text,
+    print_final,
+    print_update,
+    short_json,
+)
 
 
 def test_message_text_string() -> None:
@@ -23,6 +33,49 @@ def test_message_text_content_blocks() -> None:
 def test_short_json_truncates() -> None:
     assert short_json({"key": "value"}) == '{"key": "value"}'
     assert short_json("x" * 200, limit=10).endswith("...")
+
+
+def test_print_update_renders_tool_activity() -> None:
+    console = Console(record=True, width=200, force_terminal=False)
+    tool_call = SimpleNamespace(
+        type="ai",
+        tool_calls=[{"name": "ls", "args": {"path": "/"}}],
+        content="",
+    )
+    tool_result = SimpleNamespace(type="tool", name="ls", content="/a\n/b")
+    final = SimpleNamespace(type="ai", tool_calls=[], content="done")
+
+    message = print_update(
+        {
+            "model": {"messages": [tool_call]},
+            "tools": {"messages": [tool_result]},
+            "done": {"messages": [final]},
+        },
+        console,
+    )
+
+    assert message is final
+    text = console.export_text()
+    assert "ls" in text
+    assert "/a /b" in text
+
+
+def test_print_final_uses_raw_text_when_not_terminal() -> None:
+    buffer = io.StringIO()
+    console = Console(file=buffer, force_terminal=False, soft_wrap=True)
+    print_final(SimpleNamespace(content="# Head\n\nbody"), console)
+
+    assert buffer.getvalue() == "# Head\n\nbody\n"
+
+
+def test_print_final_renders_markdown_on_terminal() -> None:
+    buffer = io.StringIO()
+    console = Console(file=buffer, force_terminal=True, width=80)
+    print_final(SimpleNamespace(content="# Head"), console)
+
+    output = buffer.getvalue()
+    assert "Head" in output
+    assert "# Head" not in output
 
 
 def test_parser_defaults() -> None:

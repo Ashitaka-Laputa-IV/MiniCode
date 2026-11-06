@@ -7,8 +7,11 @@ import sys
 from typing import Any
 
 from dotenv import dotenv_values, find_dotenv
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.markup import escape
 
-from .agent import DEFAULT_MODEL, build_agent
+from .agent import DEFAULT_MODEL, build_agent, resolve_model, resolve_root
 
 ENV_ALLOWLIST = {
     "ANTHROPIC_API_KEY",
@@ -66,7 +69,7 @@ def short_json(value: Any, limit: int = 160) -> str:
     return text if len(text) <= limit else text[: limit - 3] + "..."
 
 
-def print_update(update: Any) -> Any:
+def print_update(update: Any, console: Console) -> Any:
     """Print tool activity from one stream update; return the last AI message."""
     if not isinstance(update, dict):
         return None
@@ -85,14 +88,29 @@ def print_update(update: Any) -> Any:
                 for call in tool_calls:
                     name = call.get("name", "tool") if isinstance(call, dict) else "tool"
                     args = call.get("args", {}) if isinstance(call, dict) else {}
-                    print(f"-> {name} {short_json(args)}", file=sys.stderr, flush=True)
+                    console.print(
+                        f"[bold cyan]->[/] [bold]{escape(str(name))}[/] "
+                        f"[dim]{escape(short_json(args))}[/]"
+                    )
             elif getattr(message, "type", None) == "tool":
                 name = getattr(message, "name", "tool")
                 text = message_text(message).strip().replace("\n", " ")
-                print(f"<- {name}: {text[:200]}", file=sys.stderr, flush=True)
+                console.print(
+                    f"[green]<-[/] [bold]{escape(str(name))}[/] "
+                    f"[dim]{escape(text[:200])}[/]"
+                )
             elif getattr(message, "type", None) == "ai":
                 final = message
     return final
+
+
+def print_final(message: Any, output: Console) -> None:
+    """Print the final answer as Markdown only on an interactive terminal."""
+    text = message_text(message)
+    if output.is_terminal:
+        output.print(Markdown(text))
+    else:
+        output.print(text, markup=False, highlight=False, soft_wrap=True)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -123,8 +141,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     env_path = load_env()
+    progress = Console(stderr=True, soft_wrap=True)
+    output = Console(soft_wrap=True)
     if args.debug and env_path:
-        print(f"minicode: loaded env from {env_path}", file=sys.stderr)
+        progress.print(f"[dim]loaded env from[/] {escape(env_path)}")
 
     prompt = " ".join(args.prompt).strip()
     if not prompt and not sys.stdin.isatty():
@@ -133,17 +153,23 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("provide a task, e.g. minicode \"fix the failing test\"")
 
     try:
+        if args.debug:
+            model_name = resolve_model(args.model)
+            root_path = resolve_root(args.root)
+            progress.print(f"[dim]workspace[/] {escape(str(root_path))}")
+            progress.print(f"[dim]model[/] {escape(model_name)}")
+
         agent = build_agent(model=args.model, root=args.root, debug=args.debug)
         final_message = None
         for update in agent.stream(
             {"messages": [{"role": "user", "content": prompt}]},
             stream_mode="updates",
         ):
-            message = print_update(update)
+            message = print_update(update, progress)
             if message is not None:
                 final_message = message
     except KeyboardInterrupt:
-        print("\nInterrupted.", file=sys.stderr)
+        progress.print("\n[yellow]Interrupted.[/]")
         return 130
     except Exception as exc:
         if args.debug:
@@ -155,15 +181,14 @@ def main(argv: list[str] | None = None) -> int:
             or "authentication" in text
             or "unauthorized" in text
         ):
-            print(
-                "minicode: provider API key is missing or invalid. "
-                "Set it for the selected model, or pass --model for another provider.",
-                file=sys.stderr,
+            progress.print(
+                "[red]minicode:[/] provider API key is missing or invalid. "
+                "Set it for the selected model, or pass --model for another provider."
             )
         else:
-            print(f"minicode: {exc}", file=sys.stderr)
+            progress.print(f"[red]minicode:[/] {escape(str(exc))}")
         return 1
 
     if final_message is not None:
-        print(message_text(final_message))
+        print_final(final_message, output)
     return 0

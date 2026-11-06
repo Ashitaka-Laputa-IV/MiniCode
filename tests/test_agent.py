@@ -1,9 +1,11 @@
 import os
+from pathlib import Path
 
 import pytest
 
 from minicode.agent import (
     DEFAULT_MODEL,
+    build_agent,
     resolve_model,
     resolve_root,
     shell_env,
@@ -26,13 +28,24 @@ def test_resolve_model_explicit_wins(monkeypatch: pytest.MonkeyPatch) -> None:
     assert resolve_model("openai:gpt-5.5") == "openai:gpt-5.5"
 
 
-def test_resolve_root_missing(tmp_path) -> None:
+def test_resolve_model_empty_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("MINICODE_MODEL", raising=False)
+    assert resolve_model("") == DEFAULT_MODEL
+
+
+def test_resolve_root_missing(tmp_path: Path) -> None:
     missing = tmp_path / "missing"
     with pytest.raises(ValueError, match="not a directory"):
         resolve_root(missing)
 
 
-def test_resolve_root_directory(tmp_path) -> None:
+def test_build_agent_rejects_missing_root(tmp_path: Path) -> None:
+    missing = tmp_path / "missing"
+    with pytest.raises(ValueError, match="not a directory"):
+        build_agent(root=missing)
+
+
+def test_resolve_root_directory(tmp_path: Path) -> None:
     assert resolve_root(tmp_path) == tmp_path.resolve()
 
 
