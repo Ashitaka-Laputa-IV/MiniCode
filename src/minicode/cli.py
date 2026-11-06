@@ -104,6 +104,15 @@ def print_update(update: Any, console: Console) -> Any:
     return final
 
 
+def print_final(message: Any, output: Console) -> None:
+    """Print the final answer as Markdown only on an interactive terminal."""
+    text = message_text(message)
+    if output.is_terminal:
+        output.print(Markdown(text))
+    else:
+        print(text)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="minicode",
@@ -146,8 +155,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         model_name = resolve_model(args.model)
         root_path = resolve_root(args.root)
-        progress.print(f"[dim]workspace[/] {escape(str(root_path))}")
-        progress.print(f"[dim]model[/] {escape(model_name)}")
+        if args.debug:
+            progress.print(f"[dim]workspace[/] {escape(str(root_path))}")
+            progress.print(f"[dim]model[/] {escape(model_name)}")
 
         agent = build_agent(model=model_name, root=root_path, debug=args.debug)
         final_message = None
@@ -180,5 +190,5 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if final_message is not None:
-        output.print(Markdown(message_text(final_message)))
+        print_final(final_message, output)
     return 0
