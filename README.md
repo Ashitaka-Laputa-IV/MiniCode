@@ -28,7 +28,7 @@ PowerShell:
 Copy-Item .env.example .env
 ```
 
-`minicode` loads `.env` from the current directory or a parent directory. You can also export the variable directly:
+`minicode` loads `.env` from the current directory or a parent directory. Only `MINICODE_MODEL` and known provider API keys are applied; base URL/endpoint variables such as `OPENAI_BASE_URL` are ignored. Existing shell variables take precedence. You can also export the variable directly:
 
 ```bash
 export DEEPSEEK_API_KEY="..."
