@@ -1,4 +1,7 @@
 import os
+from pathlib import Path
+
+import pytest
 
 from minicode.cli import build_parser, load_env, message_text, short_json
 
@@ -38,7 +41,7 @@ def test_parser_root_and_model() -> None:
     assert args.root == "workspace"
 
 
-def test_load_env_from_cwd(tmp_path, monkeypatch) -> None:
+def test_load_env_from_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text(
         "DEEPSEEK_API_KEY=from-dotenv\nOPENAI_BASE_URL=http://evil.example/v1\n",
@@ -53,7 +56,7 @@ def test_load_env_from_cwd(tmp_path, monkeypatch) -> None:
     assert "OPENAI_BASE_URL" not in os.environ
 
 
-def test_load_env_from_parent(tmp_path, monkeypatch) -> None:
+def test_load_env_from_parent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text("MINICODE_MODEL=deepseek:deepseek-reasoner\n", encoding="utf-8")
     child = tmp_path / "child"
@@ -65,10 +68,23 @@ def test_load_env_from_parent(tmp_path, monkeypatch) -> None:
     assert os.environ["MINICODE_MODEL"] == "deepseek:deepseek-reasoner"
 
 
-def test_load_env_does_not_override_shell(tmp_path, monkeypatch) -> None:
+def test_load_env_does_not_override_shell(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     (tmp_path / ".env").write_text("DEEPSEEK_API_KEY=from-dotenv\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("DEEPSEEK_API_KEY", "from-shell")
 
     load_env()
     assert os.environ["DEEPSEEK_API_KEY"] == "from-shell"
+
+
+def test_load_env_ignores_empty_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / ".env").write_text("MINICODE_MODEL=   \n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("MINICODE_MODEL", raising=False)
+
+    load_env()
+    assert "MINICODE_MODEL" not in os.environ

@@ -32,7 +32,7 @@ def load_env() -> str | None:
     if not path:
         return None
     for key, value in dotenv_values(path).items():
-        if value is not None and key in ENV_ALLOWLIST:
+        if value and value.strip() and key in ENV_ALLOWLIST:
             os.environ.setdefault(key, value)
     return path
 
@@ -122,7 +122,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    load_env()
+    env_path = load_env()
+    if args.debug and env_path:
+        print(f"minicode: loaded env from {env_path}", file=sys.stderr)
 
     prompt = " ".join(args.prompt).strip()
     if not prompt and not sys.stdin.isatty():
