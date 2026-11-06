@@ -5,7 +5,7 @@
 - Python 项目，使用 uv 管理（`pyproject.toml`、`uv.lock`、`.python-version` 固定 3.13）。
 - 源码在 `src/minicode/`，当前只有占位 `main()`；尚无测试、lint 或 CI。
 - 一律使用 uv，不要用 `pip` 或全局 Python；虚拟环境 `.venv/` 由 uv 管理，已加入 `.gitignore`。
-- 本地 `dev` 已创建；远端目前只有 `main`。若 `origin/dev` 不存在，先把 `dev` 推上去，再以它为 PR base。
+- `dev` 已推送到 `origin`；PR 基分支为 `dev`，功能分支从 `origin/dev` 切出。
 
 ## 常用命令
 
@@ -46,7 +46,13 @@
 C:\Users\Ashit\.config\ashitaka-bot\.venv\Scripts\python.exe C:\Users\Ashit\.config\ashitaka-bot\bot.py
 ```
 
-本环境 shell 是 cmd，`$BOT` 只是文档占位符，不能直接执行。可以这样设置后再用 `%BOT%`：
+`$BOT` 只是文档占位符，不能直接执行；按所用 shell 直接写完整路径。PowerShell 示例：
+
+```powershell
+& 'C:\Users\Ashit\.config\ashitaka-bot\.venv\Scripts\python.exe' 'C:\Users\Ashit\.config\ashitaka-bot\bot.py' whoami
+```
+
+cmd 示例：
 
 ```cmd
 set "BOT_PY=C:\Users\Ashit\.config\ashitaka-bot\.venv\Scripts\python.exe"

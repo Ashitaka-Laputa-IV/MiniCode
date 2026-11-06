@@ -2,12 +2,14 @@
 
 Talk like smart caveman. Same brain, fewer tokens.
 
+License: Apache-2.0. See [`LICENSE`](./LICENSE) and [`NOTICE`](./NOTICE).
+
 ## What it does
 
 Makes the model answer first and cut the ceremony: no greeting, hedging,
 filler, recap, or closer. Articles drop when the sentence still reads in one
 pass. Code, commands, paths, numbers, and exact error strings never change.
-Result depends on model and workload. Measured once on the 3.1.0 skill text (`evals/snapshots/results.json`: claude-opus-5-5, ten prompts, single run, output length only, tiktoken o200k approximation): caveman 3% fewer output tokens at the median than a plain `Answer concisely.` control, inside the noise; ultracave 35%; megacave 9%. No quality-equivalence claim is published. Mode persists until changed or stopped.
+Result depends on model and workload. Measured once on the 3.1.0 skill text ([upstream results](https://github.com/JuliusBrussee/caveman/blob/main/evals/snapshots/results.json): claude-opus-5-5, ten prompts, single run, output length only, tiktoken o200k approximation): caveman 3% fewer output tokens at the median than a plain `Answer concisely.` control, inside the noise; ultracave 35%; megacave 9%. No quality-equivalence claim is published. Mode persists until changed or stopped.
 
 Caveman is one of three sibling skills:
 
@@ -64,5 +66,6 @@ megacave:
 ## See also
 
 - [`SKILL.md`](./SKILL.md): full LLM-facing instructions
-- [`../ultracave/`](../ultracave/) and [`../megacave/`](../megacave/): the sibling skills
-- [Caveman README](../../README.md): repo overview, install, benchmarks
+- [Upstream repository](https://github.com/JuliusBrussee/caveman): full repo, sibling skills, install, benchmarks
+
+This project installs only the `caveman` skill; the sibling `ultracave` and `megacave` skills are not vendored here.
