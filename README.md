@@ -16,17 +16,25 @@ It runs one task against a workspace using the harness's filesystem tools, shell
 uv sync
 ```
 
-Set a provider key. The default model is `deepseek:deepseek-chat`:
+Set a provider key. The default model is `deepseek:deepseek-chat`. Copy the example file and fill in the key:
 
 ```bash
-export DEEPSEEK_API_KEY="..."
+cp .env.example .env
 ```
 
 PowerShell:
 
 ```powershell
-$env:DEEPSEEK_API_KEY = "..."
+Copy-Item .env.example .env
 ```
+
+`minicode` loads `.env` from the current directory or a parent directory. You can also export the variable directly:
+
+```bash
+export DEEPSEEK_API_KEY="..."
+```
+
+`.env` is ignored by git; only `.env.example` is committed.
 
 ## Usage
 

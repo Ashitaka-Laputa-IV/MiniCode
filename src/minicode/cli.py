@@ -5,6 +5,8 @@ import json
 import sys
 from typing import Any
 
+from dotenv import load_dotenv
+
 from .agent import DEFAULT_MODEL, build_agent
 
 
@@ -91,6 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    load_dotenv()
     parser = build_parser()
     args = parser.parse_args(argv)
 
