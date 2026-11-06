@@ -53,8 +53,10 @@ uv run minicode
 uv run minicode -i
 ```
 
-Inside the REPL, use `/help`, `/exit`, or `/quit`. Conversation state is kept
-in memory for the session and is lost when the process exits.
+Inside the REPL, use `/help`, `/reset`, `/exit`, or `/quit`. Conversation state
+is kept in memory for the session and is lost when the process exits. Failed or
+interrupted turns reset the thread automatically so an incomplete node is not
+resumed on the next turn.
 
 Use another provider/model with `--model` or `MINICODE_MODEL`:
 

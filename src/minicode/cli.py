@@ -5,6 +5,7 @@ import json
 import os
 import sys
 from typing import Any
+from uuid import uuid4
 
 from dotenv import dotenv_values, find_dotenv
 from rich.console import Console
@@ -148,6 +149,14 @@ def run_turn(
     return final_message
 
 
+def make_config() -> dict[str, Any]:
+    return {"configurable": {"thread_id": f"minicode-{uuid4().hex}"}}
+
+
+def reset_thread(config: dict[str, Any]) -> None:
+    config["configurable"]["thread_id"] = f"minicode-{uuid4().hex}"
+
+
 def interactive_loop(
     agent: Any,
     progress: Console,
@@ -173,18 +182,25 @@ def interactive_loop(
         if prompt in {"/exit", "/quit"}:
             return 0
         if prompt == "/help":
-            output.print("[dim]Commands: /help, /exit, /quit[/]")
+            output.print("[dim]Commands: /help, /reset, /exit, /quit[/]")
+            continue
+        if prompt == "/reset":
+            reset_thread(config)
+            output.print("[dim]Context cleared.[/]")
             continue
 
         try:
             final_message = run_turn(agent, prompt, progress, config)
         except KeyboardInterrupt:
-            progress.print("[yellow]Interrupted.[/]")
+            reset_thread(config)
+            progress.print("[yellow]Interrupted. Context reset.[/]")
             continue
         except Exception as exc:
             if debug:
                 raise
+            reset_thread(config)
             print_error(progress, exc)
+            progress.print("[yellow]Context reset after the failed turn.[/]")
             continue
 
         if final_message is not None:
@@ -245,8 +261,13 @@ def main(argv: list[str] | None = None) -> int:
             progress.print(f"[dim]workspace[/] {escape(str(root_path))}")
             progress.print(f"[dim]model[/] {escape(model_name)}")
 
-        agent = build_agent(model=args.model, root=args.root, debug=args.debug)
-        config = {"configurable": {"thread_id": "minicode"}}
+        agent = build_agent(
+            model=args.model,
+            root=args.root,
+            debug=args.debug,
+            checkpoint=not bool(prompt),
+        )
+        config = make_config()
 
         if prompt:
             final_message = run_turn(agent, prompt, progress, config)

@@ -45,6 +45,24 @@ def test_build_agent_rejects_missing_root(tmp_path: Path) -> None:
         build_agent(root=missing)
 
 
+def test_build_agent_checkpointer_is_optional(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict = {}
+
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("minicode.agent.create_deep_agent", fake_create)
+
+    build_agent(root=tmp_path)
+    assert captured["checkpointer"] is None
+
+    build_agent(root=tmp_path, checkpoint=True)
+    assert captured["checkpointer"] is not None
+
+
 def test_resolve_root_directory(tmp_path: Path) -> None:
     assert resolve_root(tmp_path) == tmp_path.resolve()
 

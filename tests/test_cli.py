@@ -10,6 +10,7 @@ from minicode.cli import (
     build_parser,
     interactive_loop,
     load_env,
+    main,
     message_text,
     print_final,
     print_update,
@@ -164,11 +165,16 @@ def test_load_env_strips_whitespace(
 
 
 class FakeAgent:
-    def __init__(self) -> None:
+    def __init__(self, fail_on_call: int | None = None) -> None:
         self.calls: list[tuple[dict, dict | None]] = []
+        self.thread_ids: list[str] = []
+        self.fail_on_call = fail_on_call
 
     def stream(self, input, config=None, stream_mode=None):
         self.calls.append((input, config))
+        self.thread_ids.append(config["configurable"]["thread_id"])
+        if self.fail_on_call == len(self.calls):
+            raise RuntimeError("boom")
         yield {
             "model": {
                 "messages": [
@@ -192,3 +198,63 @@ def test_interactive_loop_runs_turn(monkeypatch: pytest.MonkeyPatch) -> None:
     assert len(agent.calls) == 1
     assert agent.calls[0][1] == config
     assert "done" in output_buffer.getvalue()
+
+
+def test_interactive_loop_reset_command(monkeypatch: pytest.MonkeyPatch) -> None:
+    inputs = iter(["one", "/reset", "two", "/exit"])
+    monkeypatch.setattr(Console, "input", lambda self, prompt="": next(inputs))
+
+    agent = FakeAgent()
+    output = Console(file=io.StringIO(), force_terminal=False, soft_wrap=True)
+    progress = Console(file=io.StringIO(), force_terminal=False, soft_wrap=True)
+    config = {"configurable": {"thread_id": "test"}}
+
+    interactive_loop(agent, progress, output, config, False)
+    assert len(agent.thread_ids) == 2
+    assert agent.thread_ids[0] != agent.thread_ids[1]
+
+
+def test_interactive_loop_resets_thread_after_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inputs = iter(["bad", "good", "/exit"])
+    monkeypatch.setattr(Console, "input", lambda self, prompt="": next(inputs))
+
+    agent = FakeAgent(fail_on_call=1)
+    progress_buffer = io.StringIO()
+    progress = Console(file=progress_buffer, force_terminal=False, soft_wrap=True)
+    output = Console(file=io.StringIO(), force_terminal=False, soft_wrap=True)
+    config = {"configurable": {"thread_id": "test"}}
+
+    interactive_loop(agent, progress, output, config, False)
+    assert len(agent.thread_ids) == 2
+    assert agent.thread_ids[0] != agent.thread_ids[1]
+    assert "Context reset" in progress_buffer.getvalue()
+
+
+def test_interactive_loop_eof(monkeypatch: pytest.MonkeyPatch) -> None:
+    def raise_eof(self, prompt=""):
+        raise EOFError
+
+    monkeypatch.setattr(Console, "input", raise_eof)
+
+    agent = FakeAgent()
+    output = Console(file=io.StringIO(), force_terminal=False, soft_wrap=True)
+    progress = Console(file=io.StringIO(), force_terminal=False, soft_wrap=True)
+    config = {"configurable": {"thread_id": "test"}}
+
+    assert interactive_loop(agent, progress, output, config, False) == 0
+
+
+def test_main_rejects_prompt_with_interactive(monkeypatch: pytest.MonkeyPatch) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["-i", "task"])
+    assert exc.value.code == 2
+
+
+def test_main_requires_prompt_when_not_tty(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+
+    with pytest.raises(SystemExit) as exc:
+        main([])
+    assert exc.value.code == 2
