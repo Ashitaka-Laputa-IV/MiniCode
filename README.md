@@ -1,0 +1,2 @@
+# MiniCode
+Agent for Coding.
