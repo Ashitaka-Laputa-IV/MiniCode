@@ -263,6 +263,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    if argv and argv[0] == "eval":
+        from .evals.cli import main as eval_main
+
+        return eval_main(argv[1:])
+
     parser = build_parser()
     args = parser.parse_args(argv)
     env_path = load_env()

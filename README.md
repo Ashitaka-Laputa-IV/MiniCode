@@ -77,6 +77,30 @@ uv run minicode --model deepseek:deepseek-reasoner "review this change"
 
 Install that provider's integration package first, for example `uv add langchain-anthropic` or `uv add langchain-openai`.
 
+## Task evals
+
+The `smoke` suite contains 20 offline fixture tasks: bug fixes, test additions,
+refactors, cross-file changes, and small engineering changes.
+
+```bash
+uv run minicode eval --baseline all --json evals/results/smoke-all.json
+```
+
+Latest local run (2026-11-08, `deepseek:deepseek-chat`, one attempt per task):
+
+| baseline | pass@1 | tool calls/task | input/output tokens | cost | wall time |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `full` (MiniCode) | 20/20 (100%) | 9.6 | 545,816 / 17,792 | $0.1669 | 407.8s |
+| `bare` (model only) | 0/20 (0%) | 0.0 | 803 / 26,869 | $0.0298 | 293.4s |
+
+This is a **smoke suite**, not a general coding benchmark. The tasks are small
+and selected by the same repository; use the numbers for regression tracking,
+not as a claim about arbitrary repositories.
+
+Task definitions live in `evals/tasks/`, the suite in
+`evals/suites/smoke.toml`, and the runner in `src/minicode/evals/`. See
+[`evals/README.md`](evals/README.md) for the task format.
+
 ## Safety
 
 The agent uses `LocalShellBackend`: it can read and write files and run arbitrary

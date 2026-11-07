@@ -1,0 +1,4 @@
+# USD per 1M tokens. Update when provider pricing changes.
+[models."deepseek:deepseek-chat"]
+input_per_million = 0.27
+output_per_million = 1.10
