@@ -150,11 +150,18 @@ def build_agent(
         inherit_env=False,
     )
 
-    return create_deep_agent(
-        model=model_name,
-        system_prompt=SYSTEM_PROMPT.format(shell=shell_hint()),
-        backend=backend,
-        debug=debug,
-        name="minicode",
-        checkpointer=build_checkpointer(root_path, db_path) if checkpoint else None,
-    )
+    checkpointer = build_checkpointer(root_path, db_path) if checkpoint else None
+    try:
+        return create_deep_agent(
+            model=model_name,
+            system_prompt=SYSTEM_PROMPT.format(shell=shell_hint()),
+            backend=backend,
+            debug=debug,
+            name="minicode",
+            checkpointer=checkpointer,
+        )
+    except Exception:
+        if checkpointer is not None:
+            with suppress(Exception):
+                checkpointer.conn.close()
+        raise

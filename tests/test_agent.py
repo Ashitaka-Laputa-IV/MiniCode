@@ -69,6 +69,35 @@ def test_build_agent_checkpointer_is_optional(
     checkpointer.conn.close()
 
 
+def test_build_agent_closes_checkpointer_when_create_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FakeConn:
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    class FakeSaver:
+        conn = FakeConn()
+
+    saver = FakeSaver()
+
+    def fake_build_checkpointer(root, db_path=None):
+        return saver
+
+    def fake_create(**kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("minicode.agent.build_checkpointer", fake_build_checkpointer)
+    monkeypatch.setattr("minicode.agent.create_deep_agent", fake_create)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        build_agent(root=tmp_path, checkpoint=True)
+
+    assert saver.conn.closed
+
+
 def test_resolve_db_path_default(tmp_path: Path) -> None:
     assert resolve_db_path(tmp_path) == tmp_path / DEFAULT_CHECKPOINT_DB
 
