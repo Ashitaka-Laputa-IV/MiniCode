@@ -2,10 +2,13 @@ import os
 from pathlib import Path
 
 import pytest
+from langgraph.checkpoint.sqlite import SqliteSaver
 
 from minicode.agent import (
+    DEFAULT_CHECKPOINT_DB,
     DEFAULT_MODEL,
     build_agent,
+    resolve_db_path,
     resolve_model,
     resolve_root,
     shell_env,
@@ -60,7 +63,25 @@ def test_build_agent_checkpointer_is_optional(
     assert captured["checkpointer"] is None
 
     build_agent(root=tmp_path, checkpoint=True)
-    assert captured["checkpointer"] is not None
+    checkpointer = captured["checkpointer"]
+    assert isinstance(checkpointer, SqliteSaver)
+    assert (tmp_path / DEFAULT_CHECKPOINT_DB).exists()
+    checkpointer.conn.close()
+
+
+def test_resolve_db_path_default(tmp_path: Path) -> None:
+    assert resolve_db_path(tmp_path) == tmp_path / DEFAULT_CHECKPOINT_DB
+
+
+def test_resolve_db_path_relative_to_root(tmp_path: Path) -> None:
+    assert resolve_db_path(tmp_path, "state/agent.sqlite") == (
+        tmp_path / "state/agent.sqlite"
+    )
+
+
+def test_resolve_db_path_absolute(tmp_path: Path) -> None:
+    db = tmp_path / "custom.sqlite"
+    assert resolve_db_path(tmp_path / "workspace", db) == db
 
 
 def test_resolve_root_directory(tmp_path: Path) -> None:

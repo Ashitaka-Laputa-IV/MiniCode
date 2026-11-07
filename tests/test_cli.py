@@ -11,6 +11,7 @@ from minicode.cli import (
     interactive_loop,
     load_env,
     main,
+    make_config,
     message_text,
     print_final,
     print_update,
@@ -87,6 +88,18 @@ def test_parser_defaults() -> None:
     assert args.root == "."
     assert args.debug is False
     assert args.interactive is False
+    assert args.thread == "default"
+    assert args.db is None
+
+
+def test_parser_thread_and_db() -> None:
+    args = build_parser().parse_args(["--thread", "work", "--db", "state.sqlite"])
+    assert args.thread == "work"
+    assert args.db == "state.sqlite"
+
+
+def test_make_config() -> None:
+    assert make_config("work") == {"configurable": {"thread_id": "work"}}
 
 
 def test_parser_interactive() -> None:
@@ -220,7 +233,7 @@ def test_interactive_loop_reset_command(monkeypatch: pytest.MonkeyPatch) -> None
 
     interactive_loop(agent, progress, output, config, False)
     assert len(agent.thread_ids) == 2
-    assert agent.thread_ids[0] != agent.thread_ids[1]
+    assert agent.thread_ids[0] == agent.thread_ids[1]
     assert agent.checkpointer.deleted == [agent.thread_ids[0]]
 
 
@@ -255,7 +268,7 @@ def test_interactive_loop_resets_thread_after_error(
 
     interactive_loop(agent, progress, output, config, False)
     assert len(agent.thread_ids) == 2
-    assert agent.thread_ids[0] != agent.thread_ids[1]
+    assert agent.thread_ids[0] == agent.thread_ids[1]
     assert agent.checkpointer.deleted == [agent.thread_ids[0]]
     assert "Context reset" in progress_buffer.getvalue()
 

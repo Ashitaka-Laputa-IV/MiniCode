@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from deepagents import create_deep_agent
 from deepagents.backends import LocalShellBackend
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.sqlite import SqliteSaver
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
 
 DEFAULT_MODEL = "deepseek:deepseek-chat"
+DEFAULT_CHECKPOINT_DB = Path(".minicode") / "checkpoints.sqlite"
 
 SHELL_ENV_ALLOWLIST = {
     "ALLUSERSPROFILE",
@@ -99,12 +101,31 @@ def shell_env() -> dict[str, str]:
     }
 
 
+def resolve_db_path(root: Path, db_path: str | Path | None = None) -> Path:
+    path = Path(db_path).expanduser() if db_path else root / DEFAULT_CHECKPOINT_DB
+    if not path.is_absolute():
+        path = root / path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def build_checkpointer(
+    root: Path, db_path: str | Path | None = None
+) -> SqliteSaver:
+    path = resolve_db_path(root, db_path)
+    conn = sqlite3.connect(path, check_same_thread=False)
+    saver = SqliteSaver(conn)
+    saver.setup()
+    return saver
+
+
 def build_agent(
     *,
     model: str | None = None,
     root: str | Path | None = None,
     debug: bool = False,
     checkpoint: bool = False,
+    db_path: str | Path | None = None,
 ) -> "CompiledStateGraph":
     """Build the minimal Deep Agents coding harness for one workspace."""
     root_path = resolve_root(root)
@@ -122,5 +143,5 @@ def build_agent(
         backend=backend,
         debug=debug,
         name="minicode",
-        checkpointer=MemorySaver() if checkpoint else None,
+        checkpointer=build_checkpointer(root_path, db_path) if checkpoint else None,
     )

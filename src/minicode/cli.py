@@ -5,7 +5,6 @@ import json
 import os
 import sys
 from typing import Any
-from uuid import uuid4
 
 from dotenv import dotenv_values, find_dotenv
 from rich.console import Console
@@ -149,16 +148,16 @@ def run_turn(
     return final_message
 
 
-def make_config() -> dict[str, Any]:
-    return {"configurable": {"thread_id": f"minicode-{uuid4().hex}"}}
+def make_config(thread_id: str) -> dict[str, Any]:
+    return {"configurable": {"thread_id": thread_id}}
 
 
 def reset_thread(config: dict[str, Any], agent: Any) -> None:
-    old_thread = config["configurable"]["thread_id"]
-    config["configurable"]["thread_id"] = f"minicode-{uuid4().hex}"
+    """Clear the current conversation while keeping its thread id."""
+    thread_id = config["configurable"]["thread_id"]
     checkpointer = getattr(agent, "checkpointer", None)
     if checkpointer is not None:
-        checkpointer.delete_thread(old_thread)
+        checkpointer.delete_thread(thread_id)
 
 
 def interactive_loop(
@@ -238,6 +237,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="start an interactive REPL",
     )
+    parser.add_argument(
+        "--thread",
+        default="default",
+        help="conversation id for the SQLite checkpointer (default: default)",
+    )
+    parser.add_argument(
+        "--db",
+        default=None,
+        help="SQLite checkpoint path (default: <root>/.minicode/checkpoints.sqlite)",
+    )
     return parser
 
 
@@ -259,19 +268,22 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("provide a task, e.g. minicode \"fix the failing test\"")
 
     try:
+        thread_id = args.thread.strip() or "default"
         if args.debug:
             model_name = resolve_model(args.model)
             root_path = resolve_root(args.root)
             progress.print(f"[dim]workspace[/] {escape(str(root_path))}")
             progress.print(f"[dim]model[/] {escape(model_name)}")
+            progress.print(f"[dim]thread[/] {escape(thread_id)}")
 
         agent = build_agent(
             model=args.model,
             root=args.root,
             debug=args.debug,
             checkpoint=not bool(prompt),
+            db_path=args.db,
         )
-        config = make_config()
+        config = make_config(thread_id)
 
         if prompt:
             final_message = run_turn(agent, prompt, progress, config)
