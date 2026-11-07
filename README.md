@@ -56,12 +56,18 @@ uv run minicode -i --thread work --db .minicode/work.sqlite
 
 Inside the REPL, use `/help`, `/reset`, `/exit`, or `/quit`. Conversation state
 is persisted to SQLite at `<workspace>/.minicode/checkpoints.sqlite` by default.
-Use `--db` to choose another database and `--thread` to choose a conversation.
-`/reset` clears the current thread. Failed or interrupted turns clear it too,
-so an incomplete node is not resumed on the next turn.
+Use `--db` to choose another database file and `--thread` to choose a
+conversation. `/reset` clears the current thread. Failed or interrupted turns
+clear it too, so an incomplete node is not resumed on the next turn.
 
-The SQLite file contains conversation history and tool output. It is ignored by
-git; delete it or use `/reset` to remove the current conversation.
+The default thread is `default`. Parallel REPL instances in the same workspace
+share that thread and database; run them with distinct `--thread` and `--db`
+values to avoid `database is locked` or interleaved checkpoints.
+
+SQLite options only apply to the interactive REPL. The database contains
+conversation history and tool output. `.minicode/` and `*.sqlite*` files are
+ignored by git; delete the database or use `/reset` to remove the current
+conversation.
 
 Use another provider/model with `--model` or `MINICODE_MODEL`:
 

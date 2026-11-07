@@ -14,8 +14,9 @@
 - 交互式 REPL：`uv run minicode`（TTY 下无 prompt 自动进入）或 `uv run minicode -i`；`/help`、`/reset`、`/exit`、`/quit`
 - 单次运行：`uv run minicode "<task>"`
 - 其他入口：`uv run python -m minicode "<task>"`
-- REPL 会话持久化到 SQLite（默认 `<root>/.minicode/checkpoints.sqlite`）；`--db` 指定数据库，`--thread` 选择会话；失败/中断/`/reset` 会清空当前 thread
-- `.minicode/` 已忽略；数据库包含对话和工具输出，不要提交
+- REPL 会话持久化到 SQLite（默认 `<root>/.minicode/checkpoints.sqlite`）；`--db` 指定数据库文件，`--thread` 选择会话；失败/中断/`/reset` 会清空当前 thread
+- 默认 thread `default`；同一 workspace 并行 REPL 要显式用不同 `--thread`/`--db`，避免 `database is locked` 或 checkpoint 交错
+- `.minicode/` 和 `*.sqlite*` 已忽略；数据库包含对话和工具输出，不要提交
 - 模型：`--model <provider:model>` 或环境变量 `MINICODE_MODEL`；默认 `deepseek:deepseek-chat`，需要 `DEEPSEEK_API_KEY`
 - 环境变量：CLI 自动加载当前目录或祖先目录的 `.env`，但只应用 `MINICODE_MODEL` 和已知 provider key，忽略 base URL/endpoint 类变量；shell 已有变量优先。`.env` 已被忽略，提交 `.env.example`，不要把真实 key 写入版本库
 - 添加依赖：`uv add <pkg>`；开发依赖：`uv add --dev <pkg>`

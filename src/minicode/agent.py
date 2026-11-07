@@ -102,10 +102,11 @@ def shell_env() -> dict[str, str]:
 
 
 def resolve_db_path(root: Path, db_path: str | Path | None = None) -> Path:
+    if db_path is not None and str(db_path) == ":memory:":
+        raise ValueError("db_path does not support :memory:; use a file path")
     path = Path(db_path).expanduser() if db_path else root / DEFAULT_CHECKPOINT_DB
     if not path.is_absolute():
         path = root / path
-    path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
 
@@ -113,10 +114,19 @@ def build_checkpointer(
     root: Path, db_path: str | Path | None = None
 ) -> SqliteSaver:
     path = resolve_db_path(root, db_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, check_same_thread=False)
-    saver = SqliteSaver(conn)
-    saver.setup()
-    return saver
+    return SqliteSaver(conn)
+
+
+def close_checkpointer(agent: "CompiledStateGraph") -> None:
+    checkpointer = getattr(agent, "checkpointer", None)
+    conn = getattr(checkpointer, "conn", None)
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def build_agent(
@@ -127,7 +137,11 @@ def build_agent(
     checkpoint: bool = False,
     db_path: str | Path | None = None,
 ) -> "CompiledStateGraph":
-    """Build the minimal Deep Agents coding harness for one workspace."""
+    """Build the minimal Deep Agents coding harness for one workspace.
+
+    When ``checkpoint`` is enabled, the caller owns the SQLite connection;
+    close it with :func:`close_checkpointer` when the agent is no longer used.
+    """
     root_path = resolve_root(root)
     model_name = resolve_model(model)
 

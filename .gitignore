@@ -49,3 +49,4 @@ desktop.ini
 
 # Agent state / SQLite checkpoints
 .minicode/
+*.sqlite*

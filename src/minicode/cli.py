@@ -11,7 +11,13 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.markup import escape
 
-from .agent import DEFAULT_MODEL, build_agent, resolve_model, resolve_root
+from .agent import (
+    DEFAULT_MODEL,
+    build_agent,
+    close_checkpointer,
+    resolve_model,
+    resolve_root,
+)
 
 ENV_ALLOWLIST = {
     "ANTHROPIC_API_KEY",
@@ -239,13 +245,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--thread",
-        default="default",
-        help="conversation id for the SQLite checkpointer (default: default)",
+        default=None,
+        help=(
+            "conversation id for the SQLite checkpointer "
+            "(default: default; use a unique value for parallel sessions)"
+        ),
     )
     parser.add_argument(
         "--db",
         default=None,
-        help="SQLite checkpoint path (default: <root>/.minicode/checkpoints.sqlite)",
+        help=(
+            "SQLite checkpoint path, file only "
+            "(default: <root>/.minicode/checkpoints.sqlite)"
+        ),
     )
     return parser
 
@@ -262,13 +274,16 @@ def main(argv: list[str] | None = None) -> int:
     prompt = " ".join(args.prompt).strip()
     if prompt and args.interactive:
         parser.error("--interactive cannot be combined with a prompt")
+    if prompt and (args.db or args.thread):
+        parser.error("--db and --thread require interactive mode")
     if not prompt and not args.interactive and not sys.stdin.isatty():
         prompt = sys.stdin.read().strip()
     if not prompt and not args.interactive and not sys.stdin.isatty():
         parser.error("provide a task, e.g. minicode \"fix the failing test\"")
 
+    agent = None
     try:
-        thread_id = args.thread.strip() or "default"
+        thread_id = (args.thread or "default").strip() or "default"
         if args.debug:
             model_name = resolve_model(args.model)
             root_path = resolve_root(args.root)
@@ -300,3 +315,6 @@ def main(argv: list[str] | None = None) -> int:
             raise
         print_error(progress, exc)
         return 1
+    finally:
+        if agent is not None:
+            close_checkpointer(agent)

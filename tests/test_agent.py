@@ -84,6 +84,11 @@ def test_resolve_db_path_absolute(tmp_path: Path) -> None:
     assert resolve_db_path(tmp_path / "workspace", db) == db
 
 
+def test_resolve_db_path_rejects_memory(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match=":memory:"):
+        resolve_db_path(tmp_path, ":memory:")
+
+
 def test_resolve_root_directory(tmp_path: Path) -> None:
     assert resolve_root(tmp_path) == tmp_path.resolve()
 

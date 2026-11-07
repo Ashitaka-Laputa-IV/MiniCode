@@ -51,33 +51,34 @@ def test_sqlite_persists_conversation_across_agents(
     db = tmp_path / "state.sqlite"
     config = {"configurable": {"thread_id": "main"}}
 
-    first = build_agent(
-        model=ScriptedModel(replies=["first answer"]),
-        root=tmp_path,
-        checkpoint=True,
-        db_path=db,
-    )
-    first.invoke(
-        {"messages": [{"role": "user", "content": "first question"}]},
-        config=config,
-    )
+    try:
+        first = build_agent(
+            model=ScriptedModel(replies=["first answer"]),
+            root=tmp_path,
+            checkpoint=True,
+            db_path=db,
+        )
+        first.invoke(
+            {"messages": [{"role": "user", "content": "first question"}]},
+            config=config,
+        )
 
-    second = build_agent(
-        model=ScriptedModel(replies=["second answer"]),
-        root=tmp_path,
-        checkpoint=True,
-        db_path=db,
-    )
-    result = second.invoke(
-        {"messages": [{"role": "user", "content": "second question"}]},
-        config=config,
-    )
+        second = build_agent(
+            model=ScriptedModel(replies=["second answer"]),
+            root=tmp_path,
+            checkpoint=True,
+            db_path=db,
+        )
+        result = second.invoke(
+            {"messages": [{"role": "user", "content": "second question"}]},
+            config=config,
+        )
 
-    contents = [message.content for message in result["messages"]]
-    assert "first question" in contents
-    assert "first answer" in contents
-    assert "second question" in contents
-    assert "second answer" in contents
-
-    for saver in savers:
-        saver.conn.close()
+        contents = [message.content for message in result["messages"]]
+        assert "first question" in contents
+        assert "first answer" in contents
+        assert "second question" in contents
+        assert "second answer" in contents
+    finally:
+        for saver in savers:
+            saver.conn.close()

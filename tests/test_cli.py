@@ -88,7 +88,7 @@ def test_parser_defaults() -> None:
     assert args.root == "."
     assert args.debug is False
     assert args.interactive is False
-    assert args.thread == "default"
+    assert args.thread is None
     assert args.db is None
 
 
@@ -291,6 +291,32 @@ def test_main_rejects_prompt_with_interactive(monkeypatch: pytest.MonkeyPatch) -
     with pytest.raises(SystemExit) as exc:
         main(["-i", "task"])
     assert exc.value.code == 2
+
+
+def test_main_rejects_sqlite_options_with_prompt() -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["--db", "state.sqlite", "task"])
+    assert exc.value.code == 2
+
+
+def test_main_passes_sqlite_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict = {}
+
+    def fake_build_agent(**kwargs):
+        captured["build"] = kwargs
+        return object()
+
+    def fake_loop(agent, progress, output, config, debug):
+        captured["config"] = config
+        return 0
+
+    monkeypatch.setattr("minicode.cli.build_agent", fake_build_agent)
+    monkeypatch.setattr("minicode.cli.interactive_loop", fake_loop)
+
+    assert main(["-i", "--db", "state.sqlite", "--thread", "work"]) == 0
+    assert captured["build"]["db_path"] == "state.sqlite"
+    assert captured["build"]["checkpoint"] is True
+    assert captured["config"] == {"configurable": {"thread_id": "work"}}
 
 
 def test_main_requires_prompt_when_not_tty(monkeypatch: pytest.MonkeyPatch) -> None:
