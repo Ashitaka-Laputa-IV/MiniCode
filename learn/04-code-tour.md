@@ -6,13 +6,77 @@
 pyproject.toml
   -> src/minicode/__init__.py
   -> src/minicode/__main__.py
-  -> src/minicode/cli.py
+  -> src/minicode/cli.py（先看 main）
   -> src/minicode/agent.py
   -> tests/test_cli.py
   -> tests/test_agent.py
 ```
 
 先看入口，再看 agent 构建，最后看测试如何锁住行为。
+
+### 读 `cli.py` 时不要按行号顺序
+
+文件里的定义顺序是：
+
+```text
+load_env
+message_text
+short_json
+print_update
+print_final
+print_error
+run_turn
+make_config / reset_thread
+interactive_loop
+build_parser
+main
+```
+
+但执行顺序不是这样。建议按调用链读：
+
+```text
+main
+  -> build_parser / load_env
+  -> build_agent
+  -> run_turn
+       -> print_update
+  -> interactive_loop
+       -> run_turn
+  -> print_final / print_error
+```
+
+助手函数放在 `main` 前面只是 Python 文件的常见组织方式，不代表它们是入口。**先读 `main`，再顺着它调用的函数往下读，理解成本会低很多。**
+
+## 为什么 `print_update` 长这样
+
+它消费的是 LangGraph `stream_mode="updates"` 的一个 chunk，形状大致是：
+
+```python
+{
+    "node_name": {
+        "messages": [AIMessage(...), ToolMessage(...)],
+    },
+    ...
+}
+```
+
+所以它做了三件事：
+
+1. 防御性检查 `update` 是否是 dict
+2. 遍历每个 node update 里的 `messages`
+3. 把 AI 的 tool call 和 Tool 的结果打到 stderr，并返回最后一个 AI message
+
+其中 `update: Any` 是刻意的：node 名字和 payload 由 LangGraph / Deep Agents 决定，写成精确类型反而会骗人。运行时的 `isinstance` 检查才是真实的类型边界。
+
+这个函数确实有一个小设计味道：**既负责打印，又负责返回 final message**。当前规模下可以接受；如果以后逻辑继续变复杂，建议拆成：
+
+```python
+def render_update(update, console) -> None: ...
+def last_ai_message(update) -> Any: ...
+```
+
+让 I/O 和“取最后一个回答”各自独立。现在不拆也没问题，读的时候把它理解成 “render + return last AI” 即可。
+
 
 ## 入口层
 
