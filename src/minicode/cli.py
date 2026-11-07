@@ -5,14 +5,19 @@ import json
 import os
 import sys
 from typing import Any
-from uuid import uuid4
 
 from dotenv import dotenv_values, find_dotenv
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.markup import escape
 
-from .agent import DEFAULT_MODEL, build_agent, resolve_model, resolve_root
+from .agent import (
+    DEFAULT_MODEL,
+    build_agent,
+    close_checkpointer,
+    resolve_model,
+    resolve_root,
+)
 
 ENV_ALLOWLIST = {
     "ANTHROPIC_API_KEY",
@@ -149,16 +154,16 @@ def run_turn(
     return final_message
 
 
-def make_config() -> dict[str, Any]:
-    return {"configurable": {"thread_id": f"minicode-{uuid4().hex}"}}
+def make_config(thread_id: str) -> dict[str, Any]:
+    return {"configurable": {"thread_id": thread_id}}
 
 
 def reset_thread(config: dict[str, Any], agent: Any) -> None:
-    old_thread = config["configurable"]["thread_id"]
-    config["configurable"]["thread_id"] = f"minicode-{uuid4().hex}"
+    """Clear the current conversation while keeping its thread id."""
+    thread_id = config["configurable"]["thread_id"]
     checkpointer = getattr(agent, "checkpointer", None)
     if checkpointer is not None:
-        checkpointer.delete_thread(old_thread)
+        checkpointer.delete_thread(thread_id)
 
 
 def interactive_loop(
@@ -238,6 +243,22 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="start an interactive REPL",
     )
+    parser.add_argument(
+        "--thread",
+        default=None,
+        help=(
+            "conversation id for the SQLite checkpointer "
+            "(default: default; use a unique value for parallel sessions)"
+        ),
+    )
+    parser.add_argument(
+        "--db",
+        default=None,
+        help=(
+            "SQLite checkpoint path, file only "
+            "(default: <root>/.minicode/checkpoints.sqlite)"
+        ),
+    )
     return parser
 
 
@@ -255,23 +276,29 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--interactive cannot be combined with a prompt")
     if not prompt and not args.interactive and not sys.stdin.isatty():
         prompt = sys.stdin.read().strip()
+    if prompt and (args.db or args.thread):
+        parser.error("--db and --thread require interactive mode")
     if not prompt and not args.interactive and not sys.stdin.isatty():
         parser.error("provide a task, e.g. minicode \"fix the failing test\"")
 
+    agent = None
     try:
+        thread_id = (args.thread or "default").strip() or "default"
         if args.debug:
             model_name = resolve_model(args.model)
             root_path = resolve_root(args.root)
             progress.print(f"[dim]workspace[/] {escape(str(root_path))}")
             progress.print(f"[dim]model[/] {escape(model_name)}")
+            progress.print(f"[dim]thread[/] {escape(thread_id)}")
 
         agent = build_agent(
             model=args.model,
             root=args.root,
             debug=args.debug,
             checkpoint=not bool(prompt),
+            db_path=args.db,
         )
-        config = make_config()
+        config = make_config(thread_id)
 
         if prompt:
             final_message = run_turn(agent, prompt, progress, config)
@@ -288,3 +315,6 @@ def main(argv: list[str] | None = None) -> int:
             raise
         print_error(progress, exc)
         return 1
+    finally:
+        if agent is not None:
+            close_checkpointer(agent)

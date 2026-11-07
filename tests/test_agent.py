@@ -2,10 +2,13 @@ import os
 from pathlib import Path
 
 import pytest
+from langgraph.checkpoint.sqlite import SqliteSaver
 
 from minicode.agent import (
+    DEFAULT_CHECKPOINT_DB,
     DEFAULT_MODEL,
     build_agent,
+    resolve_db_path,
     resolve_model,
     resolve_root,
     shell_env,
@@ -60,7 +63,59 @@ def test_build_agent_checkpointer_is_optional(
     assert captured["checkpointer"] is None
 
     build_agent(root=tmp_path, checkpoint=True)
-    assert captured["checkpointer"] is not None
+    checkpointer = captured["checkpointer"]
+    assert isinstance(checkpointer, SqliteSaver)
+    assert (tmp_path / DEFAULT_CHECKPOINT_DB).exists()
+    checkpointer.conn.close()
+
+
+def test_build_agent_closes_checkpointer_when_create_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FakeConn:
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    class FakeSaver:
+        conn = FakeConn()
+
+    saver = FakeSaver()
+
+    def fake_build_checkpointer(root, db_path=None):
+        return saver
+
+    def fake_create(**kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("minicode.agent.build_checkpointer", fake_build_checkpointer)
+    monkeypatch.setattr("minicode.agent.create_deep_agent", fake_create)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        build_agent(root=tmp_path, checkpoint=True)
+
+    assert saver.conn.closed
+
+
+def test_resolve_db_path_default(tmp_path: Path) -> None:
+    assert resolve_db_path(tmp_path) == tmp_path / DEFAULT_CHECKPOINT_DB
+
+
+def test_resolve_db_path_relative_to_root(tmp_path: Path) -> None:
+    assert resolve_db_path(tmp_path, "state/agent.sqlite") == (
+        tmp_path / "state/agent.sqlite"
+    )
+
+
+def test_resolve_db_path_absolute(tmp_path: Path) -> None:
+    db = tmp_path / "custom.sqlite"
+    assert resolve_db_path(tmp_path / "workspace", db) == db
+
+
+def test_resolve_db_path_rejects_memory(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match=":memory:"):
+        resolve_db_path(tmp_path, ":memory:")
 
 
 def test_resolve_root_directory(tmp_path: Path) -> None:
