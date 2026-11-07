@@ -274,10 +274,10 @@ def main(argv: list[str] | None = None) -> int:
     prompt = " ".join(args.prompt).strip()
     if prompt and args.interactive:
         parser.error("--interactive cannot be combined with a prompt")
-    if prompt and (args.db or args.thread):
-        parser.error("--db and --thread require interactive mode")
     if not prompt and not args.interactive and not sys.stdin.isatty():
         prompt = sys.stdin.read().strip()
+    if prompt and (args.db or args.thread):
+        parser.error("--db and --thread require interactive mode")
     if not prompt and not args.interactive and not sys.stdin.isatty():
         parser.error("provide a task, e.g. minicode \"fix the failing test\"")
 

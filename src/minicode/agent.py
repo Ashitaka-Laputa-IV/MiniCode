@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -123,10 +124,8 @@ def close_checkpointer(agent: "CompiledStateGraph") -> None:
     checkpointer = getattr(agent, "checkpointer", None)
     conn = getattr(checkpointer, "conn", None)
     if conn is not None:
-        try:
+        with suppress(Exception):
             conn.close()
-        except Exception:
-            pass
 
 
 def build_agent(

@@ -299,6 +299,15 @@ def test_main_rejects_sqlite_options_with_prompt() -> None:
     assert exc.value.code == 2
 
 
+def test_main_rejects_sqlite_options_with_stdin_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO("task\n"))
+    with pytest.raises(SystemExit) as exc:
+        main(["--db", "state.sqlite"])
+    assert exc.value.code == 2
+
+
 def test_main_passes_sqlite_options(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict = {}
 
