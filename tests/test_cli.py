@@ -11,6 +11,7 @@ from minicode.cli import (
     interactive_loop,
     load_env,
     main,
+    make_config,
     message_text,
     print_final,
     print_update,
@@ -87,6 +88,18 @@ def test_parser_defaults() -> None:
     assert args.root == "."
     assert args.debug is False
     assert args.interactive is False
+    assert args.thread is None
+    assert args.db is None
+
+
+def test_parser_thread_and_db() -> None:
+    args = build_parser().parse_args(["--thread", "work", "--db", "state.sqlite"])
+    assert args.thread == "work"
+    assert args.db == "state.sqlite"
+
+
+def test_make_config() -> None:
+    assert make_config("work") == {"configurable": {"thread_id": "work"}}
 
 
 def test_parser_interactive() -> None:
@@ -220,7 +233,7 @@ def test_interactive_loop_reset_command(monkeypatch: pytest.MonkeyPatch) -> None
 
     interactive_loop(agent, progress, output, config, False)
     assert len(agent.thread_ids) == 2
-    assert agent.thread_ids[0] != agent.thread_ids[1]
+    assert agent.thread_ids[0] == agent.thread_ids[1]
     assert agent.checkpointer.deleted == [agent.thread_ids[0]]
 
 
@@ -255,7 +268,7 @@ def test_interactive_loop_resets_thread_after_error(
 
     interactive_loop(agent, progress, output, config, False)
     assert len(agent.thread_ids) == 2
-    assert agent.thread_ids[0] != agent.thread_ids[1]
+    assert agent.thread_ids[0] == agent.thread_ids[1]
     assert agent.checkpointer.deleted == [agent.thread_ids[0]]
     assert "Context reset" in progress_buffer.getvalue()
 
@@ -278,6 +291,41 @@ def test_main_rejects_prompt_with_interactive(monkeypatch: pytest.MonkeyPatch) -
     with pytest.raises(SystemExit) as exc:
         main(["-i", "task"])
     assert exc.value.code == 2
+
+
+def test_main_rejects_sqlite_options_with_prompt() -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["--db", "state.sqlite", "task"])
+    assert exc.value.code == 2
+
+
+def test_main_rejects_sqlite_options_with_stdin_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO("task\n"))
+    with pytest.raises(SystemExit) as exc:
+        main(["--db", "state.sqlite"])
+    assert exc.value.code == 2
+
+
+def test_main_passes_sqlite_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict = {}
+
+    def fake_build_agent(**kwargs):
+        captured["build"] = kwargs
+        return object()
+
+    def fake_loop(agent, progress, output, config, debug):
+        captured["config"] = config
+        return 0
+
+    monkeypatch.setattr("minicode.cli.build_agent", fake_build_agent)
+    monkeypatch.setattr("minicode.cli.interactive_loop", fake_loop)
+
+    assert main(["-i", "--db", "state.sqlite", "--thread", "work"]) == 0
+    assert captured["build"]["db_path"] == "state.sqlite"
+    assert captured["build"]["checkpoint"] is True
+    assert captured["config"] == {"configurable": {"thread_id": "work"}}
 
 
 def test_main_requires_prompt_when_not_tty(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -46,3 +46,7 @@ desktop.ini
 
 # Logs
 *.log
+
+# Agent state / SQLite checkpoints
+.minicode/
+*.sqlite*
