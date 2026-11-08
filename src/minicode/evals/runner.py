@@ -24,7 +24,7 @@ from minicode.agent import shell_env
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 EVALS_DIR = Path(
     os.environ.get("MINICODE_EVALS_DIR", PROJECT_ROOT / "evals")
-).expanduser()
+).expanduser().resolve()
 TASKS_DIR = EVALS_DIR / "tasks"
 SUITES_DIR = EVALS_DIR / "suites"
 PRICING_FILE = EVALS_DIR / "pricing.toml"

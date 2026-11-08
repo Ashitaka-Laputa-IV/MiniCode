@@ -28,6 +28,26 @@ def test_verify_env_excludes_secrets(
     assert str(tmp_path) in env["PYTHONPATH"]
 
 
+def test_relative_evals_dir_is_resolved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import importlib
+
+    import minicode.evals.runner as runner
+
+    monkeypatch.setenv("MINICODE_EVALS_DIR", "evals")
+    reloaded = importlib.reload(runner)
+    try:
+        assert reloaded.EVALS_DIR.is_absolute()
+        task = reloaded.load_suite("smoke")[0]
+        assert task.path.is_absolute()
+        assert task.hidden_tests is None or task.hidden_tests.is_absolute()
+        assert task.verify_script is None or task.verify_script.is_absolute()
+    finally:
+        monkeypatch.delenv("MINICODE_EVALS_DIR", raising=False)
+        importlib.reload(runner)
+
+
 def test_cost_uses_pricing() -> None:
     pricing = {
         "model": {
