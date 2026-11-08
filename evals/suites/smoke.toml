@@ -1,0 +1,23 @@
+name = "smoke"
+tasks = [
+  "fix-import",
+  "fix-off-by-one",
+  "fix-parse-bool",
+  "fix-nested-get",
+  "fix-cli-exit",
+  "fix-word-count",
+  "add-tests-slugify",
+  "add-tests-divide",
+  "add-tests-stack",
+  "add-tests-user",
+  "refactor-duplicate",
+  "refactor-rename",
+  "refactor-extract-validation",
+  "refactor-split-module",
+  "cross-file-api",
+  "cross-file-config",
+  "cross-file-import",
+  "cross-file-cli",
+  "add-main-guard",
+  "add-pyproject-script",
+]

@@ -50,3 +50,6 @@ desktop.ini
 # Agent state / SQLite checkpoints
 .minicode/
 *.sqlite*
+
+# Evaluation reports and fixture work dirs
+evals/results/

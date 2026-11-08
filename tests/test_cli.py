@@ -109,9 +109,9 @@ def test_parser_interactive() -> None:
 
 def test_parser_root_and_model() -> None:
     args = build_parser().parse_args(
-        ["--model", "deepseek:deepseek-chat", "--root", "workspace", "task"]
+        ["--model", "deepseek:deepseek-flash", "--root", "workspace", "task"]
     )
-    assert args.model == "deepseek:deepseek-chat"
+    assert args.model == "deepseek:deepseek-flash"
     assert args.root == "workspace"
 
 

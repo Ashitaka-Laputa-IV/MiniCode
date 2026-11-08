@@ -220,12 +220,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="minicode",
         description="Run a minimal Deep Agents coding agent in a workspace.",
+        epilog="Task evals: minicode eval --help",
     )
     parser.add_argument("prompt", nargs="*", help="task for the agent")
     parser.add_argument(
         "--model",
         default=None,
-        help=f"LangChain model, e.g. deepseek:deepseek-chat (default: $MINICODE_MODEL or {DEFAULT_MODEL})",
+        help=f"LangChain model, e.g. deepseek:deepseek-flash (default: $MINICODE_MODEL or {DEFAULT_MODEL})",
     )
     parser.add_argument(
         "--root",
@@ -263,6 +264,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    if argv and argv[0] == "eval":
+        from .evals.cli import main as eval_main
+
+        return eval_main(argv[1:])
+
     parser = build_parser()
     args = parser.parse_args(argv)
     env_path = load_env()
