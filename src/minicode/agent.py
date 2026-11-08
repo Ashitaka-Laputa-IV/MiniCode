@@ -13,7 +13,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
 
-DEFAULT_MODEL = "deepseek:deepseek-chat"
+DEFAULT_MODEL = "deepseek:deepseek-flash"
 DEFAULT_CHECKPOINT_DB = Path(".minicode") / "checkpoints.sqlite"
 
 SHELL_ENV_ALLOWLIST = {

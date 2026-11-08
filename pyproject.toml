@@ -9,6 +9,7 @@ requires-python = ">=3.13"
 readme = "README.md"
 dependencies = [
     "deepagents>=0.7.34",
+    "langchain>=1.4.9",
     "langchain-deepseek>=1.1.1",
     "langgraph>=1.2.20",
     "langgraph-checkpoint-sqlite>=3.1.3",
@@ -27,3 +28,6 @@ build-backend = "uv_build"
 dev = [
     "pytest>=9.2.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
