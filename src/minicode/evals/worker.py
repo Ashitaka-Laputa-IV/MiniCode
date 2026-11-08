@@ -30,12 +30,18 @@ def message_text(message: Any) -> str:
 def usage(message: Any) -> dict[str, int]:
     raw = getattr(message, "usage_metadata", None)
     if isinstance(raw, dict):
-        return {
+        result = {
             key: int(value)
             for key, value in raw.items()
             if key in {"input_tokens", "output_tokens", "total_tokens"}
             and isinstance(value, (int, float))
         }
+        details = raw.get("input_token_details")
+        if isinstance(details, dict):
+            cached = details.get("cache_read") or details.get("cached_tokens")
+            if isinstance(cached, (int, float)):
+                result["cached_input_tokens"] = int(cached)
+        return result
     response = getattr(message, "response_metadata", None)
     if isinstance(response, dict):
         raw = response.get("token_usage") or response.get("usage")
@@ -45,11 +51,15 @@ def usage(message: Any) -> dict[str, int]:
                 "completion_tokens": "output_tokens",
                 "total_tokens": "total_tokens",
             }
-            return {
+            result = {
                 mapping[key]: int(value)
                 for key, value in raw.items()
                 if key in mapping and isinstance(value, (int, float))
             }
+            cached = raw.get("prompt_cache_hit_tokens")
+            if isinstance(cached, (int, float)):
+                result["cached_input_tokens"] = int(cached)
+            return result
     return {}
 
 

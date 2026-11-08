@@ -226,7 +226,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model",
         default=None,
-        help=f"LangChain model, e.g. deepseek:deepseek-chat (default: $MINICODE_MODEL or {DEFAULT_MODEL})",
+        help=f"LangChain model, e.g. deepseek:deepseek-flash (default: $MINICODE_MODEL or {DEFAULT_MODEL})",
     )
     parser.add_argument(
         "--root",

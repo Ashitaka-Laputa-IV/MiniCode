@@ -68,6 +68,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.keep:
         print(f"work dir: {report['work_dir']}")
 
+    # bare is a capability floor; its failures are expected and should not fail CI.
+    if baselines == ["bare"]:
+        return 0
+
     non_bare = [
         summary
         for baseline, summary in report["baselines"].items()

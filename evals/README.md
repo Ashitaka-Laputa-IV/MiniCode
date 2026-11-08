@@ -15,7 +15,8 @@ uv run minicode eval --baseline all --json evals/results/smoke-all.json
 ```
 
 `full` runs MiniCode. `bare` sends the same prompt directly to the model with
-no tools. `all` runs both baselines.
+no tools. `all` runs both baselines. A bare-only run is informational and exits
+0 even when tasks fail; `full` failures still exit 1.
 
 Reports are written only when `--json` is passed. `evals/results/` is ignored by
 git.
@@ -36,7 +37,9 @@ evals/tasks/<id>/
 ```toml
 id = "fix-import"
 category = "bugfix"
-timeout_seconds = 180
+timeout_seconds = 180            # fallback for both phases
+agent_timeout_seconds = 180      # optional
+verify_timeout_seconds = 180     # optional
 max_tool_calls = 30
 hidden_tests = "hidden"          # optional
 verify_command = "python -m pytest -q"  # optional; this is the default

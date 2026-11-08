@@ -38,7 +38,8 @@ class Task:
     path: Path
     category: str
     prompt_file: Path
-    timeout_seconds: int
+    agent_timeout_seconds: int
+    verify_timeout_seconds: int
     max_tool_calls: int
     hidden_tests: Path | None
     verify_command: str | None
@@ -50,12 +51,14 @@ def load_task(path: Path) -> Task:
     task_id = str(data.get("id") or path.name)
     hidden = data.get("hidden_tests")
     verify_script = data.get("verify_script")
+    timeout = int(data.get("timeout_seconds", 180))
     return Task(
         id=task_id,
         path=path,
         category=str(data.get("category", "general")),
         prompt_file=path / str(data.get("prompt_file", "prompt.md")),
-        timeout_seconds=int(data.get("timeout_seconds", 180)),
+        agent_timeout_seconds=int(data.get("agent_timeout_seconds", timeout)),
+        verify_timeout_seconds=int(data.get("verify_timeout_seconds", timeout)),
         max_tool_calls=int(data.get("max_tool_calls", 30)),
         hidden_tests=(path / str(hidden)) if hidden else None,
         verify_command=(str(data["verify_command"]) if "verify_command" in data else None),
@@ -89,8 +92,14 @@ def load_pricing() -> dict[str, dict[str, float]]:
 
 def cost_for(model: str, usage: dict[str, int], pricing: dict[str, dict[str, float]]) -> float:
     prices = pricing.get(model, {})
+    cached = usage.get("cached_input_tokens", 0)
+    uncached = max(usage.get("input_tokens", 0) - cached, 0)
+    cached_price = prices.get(
+        "cached_input_per_million", prices.get("input_per_million", 0.0)
+    )
     return (
-        usage.get("input_tokens", 0) * prices.get("input_per_million", 0.0)
+        uncached * prices.get("input_per_million", 0.0)
+        + cached * cached_price
         + usage.get("output_tokens", 0) * prices.get("output_per_million", 0.0)
     ) / 1_000_000
 
@@ -165,7 +174,7 @@ def run_verify(task: Task, workspace: Path) -> tuple[bool, str]:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=task.timeout_seconds,
+                timeout=task.verify_timeout_seconds,
             )
             collected = sum(
                 1 for line in collect.stdout.splitlines() if "::" in line
@@ -182,7 +191,7 @@ def run_verify(task: Task, workspace: Path) -> tuple[bool, str]:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=task.timeout_seconds,
+                timeout=task.verify_timeout_seconds,
             )
         except subprocess.TimeoutExpired:
             return False, "verification timed out"
@@ -210,7 +219,7 @@ def run_verify(task: Task, workspace: Path) -> tuple[bool, str]:
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=task.timeout_seconds,
+            timeout=task.verify_timeout_seconds,
         )
     except subprocess.TimeoutExpired:
         return False, "verification timed out"
@@ -252,16 +261,16 @@ def run_worker(
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=task.timeout_seconds,
+            timeout=task.agent_timeout_seconds,
         )
     except subprocess.TimeoutExpired:
         return (
             {
                 "ok": False,
-                "error": f"task timed out after {task.timeout_seconds}s",
+                "error": f"task timed out after {task.agent_timeout_seconds}s",
                 "tool_calls": 0,
                 "usage": {},
-                "duration_s": float(task.timeout_seconds),
+                "duration_s": float(task.agent_timeout_seconds),
             },
             "",
         )
@@ -339,7 +348,12 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
     if not results:
         return {}
     passed = sum(1 for result in results if result["passed"])
-    usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    usage = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cached_input_tokens": 0,
+        "total_tokens": 0,
+    }
     for result in results:
         for key, value in result["usage"].items():
             if key in usage:
@@ -353,6 +367,7 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
         ),
         "input_tokens": usage["input_tokens"],
         "output_tokens": usage["output_tokens"],
+        "cached_input_tokens": usage["cached_input_tokens"],
         "total_tokens": usage["total_tokens"],
         "cost_usd": round(sum(result["cost_usd"] for result in results), 6),
         "wall_time_s": round(sum(result["duration_s"] for result in results), 2),

@@ -16,7 +16,7 @@ It runs a task or an interactive session against a workspace using the harness's
 uv sync
 ```
 
-Set a provider key. The default model is `deepseek:deepseek-chat`. Copy the example file and fill in the key:
+Set a provider key. The default model is `deepseek:deepseek-flash`. Copy the example file and fill in the key:
 
 ```bash
 cp .env.example .env
@@ -86,16 +86,18 @@ refactors, cross-file changes, and small engineering changes.
 uv run minicode eval --baseline all --json evals/results/smoke-all.json
 ```
 
-Latest local run (2026-11-08, `deepseek:deepseek-chat`, one attempt per task):
+Latest local run (2026-11-08, `deepseek:deepseek-flash`, one attempt per task):
 
 | baseline | pass@1 | tool calls/task | input/output tokens | cost | wall time |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `full` (MiniCode) | 20/20 (100%) | 9.3 | 524,311 / 16,309 | $0.1595 | 450.2s |
-| `bare` (model only) | 0/20 (0%) | 0.0 | 803 / 11,532 | $0.0129 | 225.2s |
+| `full` (MiniCode) | 20/20 (100%) | 11.2 | 664,332 / 28,954 | $0.0852 | 585.9s |
+| `bare` (model only) | 0/20 (0%) | 0.0 | 1,323 / 10,334 | $0.0117 | 240.1s |
 
 This is a **smoke suite**, not a general coding benchmark. The tasks are small
 and selected by the same repository; use the numbers for regression tracking,
-not as a claim about arbitrary repositories.
+not as a claim about arbitrary repositories. Verification isolation is
+convention-level: it prevents config-based bypass, but it is not an adversarial
+sandbox against a malicious agent.
 
 Task definitions live in `evals/tasks/`, the suite in
 `evals/suites/smoke.toml`, and the runner in `src/minicode/evals/`. See

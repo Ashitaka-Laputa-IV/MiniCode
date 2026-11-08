@@ -39,6 +39,22 @@ def test_cost_uses_pricing() -> None:
     assert cost_for("model", usage, pricing) == 2.0
 
 
+def test_cost_uses_cached_input_price() -> None:
+    pricing = {
+        "model": {
+            "input_per_million": 1.0,
+            "output_per_million": 2.0,
+            "cached_input_per_million": 0.1,
+        }
+    }
+    usage = {
+        "input_tokens": 1_000_000,
+        "cached_input_tokens": 500_000,
+        "output_tokens": 0,
+    }
+    assert cost_for("model", usage, pricing) == 0.55
+
+
 def test_summarize() -> None:
     results = [
         {

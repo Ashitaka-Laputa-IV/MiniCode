@@ -25,5 +25,6 @@ raise SystemExit(
             "no:cacheprovider",
         ],
         cwd=workspace,
+        timeout=60,
     ).returncode
 )
