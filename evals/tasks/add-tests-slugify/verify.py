@@ -11,6 +11,19 @@ if "slugify" not in text:
     raise SystemExit("test file does not reference slugify")
 if text.count("def test_") < 3:
     raise SystemExit("expected at least three tests")
+safe_ini = Path(__file__).resolve().parents[2] / "pytest-safe.ini"
 raise SystemExit(
-    subprocess.run([sys.executable, "-m", "pytest", "-q"], cwd=workspace).returncode
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-c",
+            str(safe_ini),
+            "-p",
+            "no:cacheprovider",
+        ],
+        cwd=workspace,
+    ).returncode
 )

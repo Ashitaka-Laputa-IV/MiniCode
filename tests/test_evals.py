@@ -1,4 +1,8 @@
-from minicode.evals.runner import cost_for, load_suite, summarize
+from pathlib import Path
+
+import pytest
+
+from minicode.evals.runner import cost_for, load_suite, summarize, verification_env
 
 
 def test_smoke_suite_has_twenty_tasks() -> None:
@@ -7,6 +11,21 @@ def test_smoke_suite_has_twenty_tasks() -> None:
     assert len({task.id for task in tasks}) == 20
     assert all((task.path / "prompt.md").exists() for task in tasks)
     assert all((task.path / "fixture").is_dir() for task in tasks)
+    assert all(task.hidden_tests or task.verify_script for task in tasks)
+    for task in tasks:
+        if task.hidden_tests is not None:
+            assert task.hidden_tests.is_dir()
+        if task.verify_script is not None:
+            assert task.verify_script.is_file()
+
+
+def test_verify_env_excludes_secrets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "secret")
+    env = verification_env(tmp_path)
+    assert "DEEPSEEK_API_KEY" not in env
+    assert str(tmp_path) in env["PYTHONPATH"]
 
 
 def test_cost_uses_pricing() -> None:

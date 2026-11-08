@@ -17,7 +17,8 @@ uv run minicode eval --baseline all --json evals/results/smoke-all.json
 `full` runs MiniCode. `bare` sends the same prompt directly to the model with
 no tools. `all` runs both baselines.
 
-Reports go to `evals/results/`, which is ignored by git.
+Reports are written only when `--json` is passed. `evals/results/` is ignored by
+git.
 
 ## Task layout
 
@@ -45,9 +46,12 @@ verify_command = "python -m pytest -q"  # optional; this is the default
 Rules:
 
 - The fixture is copied to a fresh temporary directory for every run.
-- Hidden tests are not visible to the agent.
+- Hidden tests are not copied into the workspace during the agent run; they are
+  copied to a sibling directory for verification. This is convention-level
+  hiding, not sandbox isolation.
 - Correctness is based on executable verification, not an LLM judge.
-- Verification runs with `PYTHONPATH` pointing at the fixture workspace.
+- Verification runs with a filtered environment (`SHELL_ENV_ALLOWLIST`) and
+  `PYTHONPATH` pointing at the fixture workspace.
 - `bare` does not edit files, so it is useful as a floor baseline.
 
 ## Metrics

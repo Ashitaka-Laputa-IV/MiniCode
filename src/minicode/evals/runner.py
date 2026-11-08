@@ -19,6 +19,8 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
+from minicode.agent import shell_env
+
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 EVALS_DIR = Path(
     os.environ.get("MINICODE_EVALS_DIR", PROJECT_ROOT / "evals")
@@ -26,6 +28,7 @@ EVALS_DIR = Path(
 TASKS_DIR = EVALS_DIR / "tasks"
 SUITES_DIR = EVALS_DIR / "suites"
 PRICING_FILE = EVALS_DIR / "pricing.toml"
+SAFE_PYTEST_INI = EVALS_DIR / "pytest-safe.ini"
 DEFAULT_SUITE = "smoke"
 
 
@@ -93,6 +96,16 @@ def cost_for(model: str, usage: dict[str, int], pricing: dict[str, dict[str, flo
 
 
 def verification_env(workspace: Path) -> dict[str, str]:
+    """Environment for verification: no provider keys, workspace on import path."""
+    env = shell_env()
+    old = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = str(workspace) if not old else f"{workspace}{os.pathsep}{old}"
+    env["PYTHONIOENCODING"] = "utf-8"
+    return env
+
+
+def worker_env(workspace: Path) -> dict[str, str]:
+    """Environment for the agent process: it needs the provider key."""
     env = dict(os.environ)
     old = env.get("PYTHONPATH")
     env["PYTHONPATH"] = str(workspace) if not old else f"{workspace}{os.pathsep}{old}"
@@ -100,13 +113,81 @@ def verification_env(workspace: Path) -> dict[str, str]:
     return env
 
 
+def failed_result(
+    task: Task, baseline: str, error: str, duration_s: float = 0.0
+) -> dict[str, Any]:
+    return {
+        "id": task.id,
+        "category": task.category,
+        "baseline": baseline,
+        "passed": False,
+        "worker_ok": False,
+        "verify_ok": False,
+        "error": error,
+        "tool_calls": 0,
+        "usage": {},
+        "cost_usd": 0.0,
+        "duration_s": round(duration_s, 3),
+        "verify_output": "",
+        "worker_output": "",
+        "final": "",
+    }
+
+
 def run_verify(task: Task, workspace: Path) -> tuple[bool, str]:
+    env = verification_env(workspace)
+
     if task.hidden_tests is not None:
-        shutil.copytree(
-            task.hidden_tests,
-            workspace / "_hidden_tests",
-            dirs_exist_ok=True,
-        )
+        hidden_root = workspace.parent / "hidden_tests"
+        shutil.rmtree(hidden_root, ignore_errors=True)
+        shutil.copytree(task.hidden_tests, hidden_root)
+        pytest_args = [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-c",
+            str(SAFE_PYTEST_INI),
+            "--rootdir",
+            str(hidden_root),
+            "--confcutdir",
+            str(hidden_root),
+            "-p",
+            "no:cacheprovider",
+            str(hidden_root),
+        ]
+        try:
+            collect = subprocess.run(
+                pytest_args + ["--collect-only"],
+                cwd=workspace,
+                env=env,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=task.timeout_seconds,
+            )
+            collected = sum(
+                1 for line in collect.stdout.splitlines() if "::" in line
+            )
+            if collect.returncode != 0:
+                return False, (collect.stdout + "\n" + collect.stderr).strip()[-4000:]
+            if collected == 0:
+                return False, "hidden tests collected 0 tests"
+            proc = subprocess.run(
+                pytest_args,
+                cwd=workspace,
+                env=env,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=task.timeout_seconds,
+            )
+        except subprocess.TimeoutExpired:
+            return False, "verification timed out"
+        output = (proc.stdout + "\n" + proc.stderr).strip()
+        return proc.returncode == 0, output[-4000:]
 
     if task.verify_script is not None:
         command = [sys.executable, str(task.verify_script), str(workspace)]
@@ -115,14 +196,20 @@ def run_verify(task: Task, workspace: Path) -> tuple[bool, str]:
         command = shlex.split(raw)
         if command and command[0] in {"python", "python3"}:
             command[0] = sys.executable
+        if command[:3] == [sys.executable, "-m", "pytest"]:
+            command.extend(
+                ["-c", str(SAFE_PYTEST_INI), "-p", "no:cacheprovider"]
+            )
 
     try:
         proc = subprocess.run(
             command,
             cwd=workspace,
-            env=verification_env(workspace),
+            env=env,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=task.timeout_seconds,
         )
     except subprocess.TimeoutExpired:
@@ -160,9 +247,11 @@ def run_worker(
         proc = subprocess.run(
             command,
             cwd=workspace,
-            env=verification_env(workspace),
+            env=worker_env(workspace),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=task.timeout_seconds,
         )
     except subprocess.TimeoutExpired:
@@ -188,7 +277,19 @@ def run_worker(
             },
             (proc.stdout + "\n" + proc.stderr).strip(),
         )
-    return json.loads(output_file.read_text(encoding="utf-8")), ""
+    try:
+        return json.loads(output_file.read_text(encoding="utf-8")), ""
+    except (OSError, json.JSONDecodeError) as exc:
+        return (
+            {
+                "ok": False,
+                "error": f"worker result unreadable: {exc}",
+                "tool_calls": 0,
+                "usage": {},
+                "duration_s": 0.0,
+            },
+            (proc.stdout + "\n" + proc.stderr).strip(),
+        )
 
 
 def run_task(
@@ -282,13 +383,18 @@ def run_suite(
     try:
         for baseline in baselines:
             for task in tasks:
-                result = run_task(
-                    task,
-                    work_root=work_root,
-                    model=model,
-                    baseline=baseline,
-                    pricing=pricing,
-                )
+                try:
+                    result = run_task(
+                        task,
+                        work_root=work_root,
+                        model=model,
+                        baseline=baseline,
+                        pricing=pricing,
+                    )
+                except Exception as exc:
+                    result = failed_result(
+                        task, baseline, f"{type(exc).__name__}: {exc}"
+                    )
                 results.append(result)
     finally:
         if not keep:
@@ -335,6 +441,9 @@ def print_report(report: dict[str, Any]) -> None:
 
     console.print(table)
     for baseline, summary in report["baselines"].items():
+        if not summary:
+            console.print(f"[bold]{baseline}[/] no tasks")
+            continue
         console.print(
             f"[bold]{baseline}[/] pass@1 "
             f"{summary['passed']}/{summary['tasks']} "

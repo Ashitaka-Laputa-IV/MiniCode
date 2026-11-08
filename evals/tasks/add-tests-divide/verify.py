@@ -11,6 +11,19 @@ if "pytest.raises" not in text or "ZeroDivisionError" not in text:
     raise SystemExit("test must cover ZeroDivisionError with pytest.raises")
 if text.count("def test_") < 2:
     raise SystemExit("expected at least two tests")
+safe_ini = Path(__file__).resolve().parents[2] / "pytest-safe.ini"
 raise SystemExit(
-    subprocess.run([sys.executable, "-m", "pytest", "-q"], cwd=workspace).returncode
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-c",
+            str(safe_ini),
+            "-p",
+            "no:cacheprovider",
+        ],
+        cwd=workspace,
+    ).returncode
 )

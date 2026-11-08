@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ..agent import resolve_model
 from ..cli import load_env
-from .runner import DEFAULT_SUITE, EVALS_DIR, print_report, run_suite
+from .runner import DEFAULT_SUITE, print_report, run_suite
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -66,11 +66,19 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nreport: {path}")
 
     if args.keep:
-        print(f"work dir: {EVALS_DIR / 'results'} (kept temporary root: {report['work_dir']})")
+        print(f"work dir: {report['work_dir']}")
 
-    passed = all(
-        summary["passed"] == summary["tasks"]
+    non_bare = [
+        summary
         for baseline, summary in report["baselines"].items()
         if baseline != "bare"
-    )
+    ]
+    if non_bare:
+        passed = all(summary["passed"] == summary["tasks"] for summary in non_bare)
+    else:
+        passed = all(
+            summary["passed"] == summary["tasks"]
+            for summary in report["baselines"].values()
+            if summary
+        )
     return 0 if passed else 1

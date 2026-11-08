@@ -220,6 +220,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="minicode",
         description="Run a minimal Deep Agents coding agent in a workspace.",
+        epilog="Task evals: minicode eval --help",
     )
     parser.add_argument("prompt", nargs="*", help="task for the agent")
     parser.add_argument(

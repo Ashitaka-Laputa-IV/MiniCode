@@ -90,8 +90,8 @@ Latest local run (2026-11-08, `deepseek:deepseek-chat`, one attempt per task):
 
 | baseline | pass@1 | tool calls/task | input/output tokens | cost | wall time |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `full` (MiniCode) | 20/20 (100%) | 9.6 | 545,816 / 17,792 | $0.1669 | 407.8s |
-| `bare` (model only) | 0/20 (0%) | 0.0 | 803 / 26,869 | $0.0298 | 293.4s |
+| `full` (MiniCode) | 20/20 (100%) | 9.3 | 524,311 / 16,309 | $0.1595 | 450.2s |
+| `bare` (model only) | 0/20 (0%) | 0.0 | 803 / 11,532 | $0.0129 | 225.2s |
 
 This is a **smoke suite**, not a general coding benchmark. The tasks are small
 and selected by the same repository; use the numbers for regression tracking,

@@ -11,6 +11,19 @@ if "User" not in text or "display_name" not in text:
     raise SystemExit("test file must cover User.display_name")
 if text.count("def test_") < 2:
     raise SystemExit("expected at least two tests")
+safe_ini = Path(__file__).resolve().parents[2] / "pytest-safe.ini"
 raise SystemExit(
-    subprocess.run([sys.executable, "-m", "pytest", "-q"], cwd=workspace).returncode
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-c",
+            str(safe_ini),
+            "-p",
+            "no:cacheprovider",
+        ],
+        cwd=workspace,
+    ).returncode
 )
