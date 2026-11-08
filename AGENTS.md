@@ -3,7 +3,7 @@
 ## 仓库现状
 
 - Python 项目，使用 uv 管理（`pyproject.toml`、`uv.lock`、`.python-version` 固定 3.13）。
-- 基于 Deep Agents harness：`src/minicode/agent.py` 用 `create_deep_agent` + `LocalShellBackend`；`src/minicode/cli.py` 是入口。有 pytest 测试，无 lint 或 CI。
+- 基于 Deep Agents harness：`src/minicode/agent.py` 用 `create_deep_agent` + `LocalShellBackend`；`src/minicode/cli.py` 是入口。测试用 pytest，静态检查用 ruff + mypy，CI 在 GitHub Actions。
 - Agent 拥有当前工作区的文件读写和 shell 执行权限，没有 HITL 审批；shell 环境变量经过过滤，不继承 provider key。默认模型 `deepseek:deepseek-flash`，用 `--model` 或 `MINICODE_MODEL` 覆盖。
 - 一律使用 uv，不要用 `pip` 或全局 Python；虚拟环境 `.venv/` 由 uv 管理，已加入 `.gitignore`。
 - `dev` 已推送到 `origin`；PR 基分支为 `dev`，功能分支从 `origin/dev` 切出。
@@ -22,9 +22,19 @@
 - 添加依赖：`uv add <pkg>`；开发依赖：`uv add --dev <pkg>`
 - 更新锁文件：`uv lock`（升级用 `uv lock --upgrade`）
 - 运行单个测试：`uv run pytest tests/test_cli.py::test_parser_defaults`；全量：`uv run pytest -q`
+- 覆盖率测试：`uv run pytest -q --cov=minicode --cov-report=term-missing`；下限 50%，配置在 `pyproject.toml`
+- 代码检查：`uv run ruff check .`；格式检查：`uv run ruff format --check .`；格式化：`uv run ruff format .`
+- 类型检查：`uv run mypy src`
 - 任务评测：`uv run minicode eval --baseline full --json evals/results/smoke-full.json`；`--baseline all` 同时跑 `bare`；20 个 fixture 任务在 `evals/tasks/`
 - 评测结果目录 `evals/results/` 已忽略；修改任务/runner 后先跑 `--task <id>` 再跑 smoke
+- smoke 有 API 成本和耗时，PR CI 不跑；只在需要回归数据或改动 eval runner 时手动跑
 - 临时脚本：`uv run python -c "..."`
+
+## CI
+
+- `.github/workflows/ci.yml`：push / PR 到 `dev`、`main` 时运行 `uv sync --locked`、ruff、format check、mypy、pytest + coverage（下限 50%）。不调用模型。
+- `.github/workflows/live-eval.yml`：仅手动 `workflow_dispatch`，需要仓库 secret `DEEPSEEK_API_KEY`，运行 smoke 并上传 JSON 报告。不要在 PR 流程里触发。
+- 改动 workflow 后本地至少跑一遍对应命令；不要为了验证 CI 而重跑 smoke。
 
 ## 项目技能
 

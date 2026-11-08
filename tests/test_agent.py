@@ -103,9 +103,7 @@ def test_resolve_db_path_default(tmp_path: Path) -> None:
 
 
 def test_resolve_db_path_relative_to_root(tmp_path: Path) -> None:
-    assert resolve_db_path(tmp_path, "state/agent.sqlite") == (
-        tmp_path / "state/agent.sqlite"
-    )
+    assert resolve_db_path(tmp_path, "state/agent.sqlite") == (tmp_path / "state/agent.sqlite")
 
 
 def test_resolve_db_path_absolute(tmp_path: Path) -> None:

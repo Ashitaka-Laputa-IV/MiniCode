@@ -142,9 +142,7 @@ def test_load_env_from_parent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     assert os.environ["MINICODE_MODEL"] == "deepseek:deepseek-reasoner"
 
 
-def test_load_env_does_not_override_shell(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_load_env_does_not_override_shell(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     (tmp_path / ".env").write_text("DEEPSEEK_API_KEY=from-dotenv\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("DEEPSEEK_API_KEY", "from-shell")
@@ -153,9 +151,7 @@ def test_load_env_does_not_override_shell(
     assert os.environ["DEEPSEEK_API_KEY"] == "from-shell"
 
 
-def test_load_env_ignores_empty_values(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_load_env_ignores_empty_values(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     (tmp_path / ".env").write_text("MINICODE_MODEL=   \n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("MINICODE_MODEL", raising=False)
@@ -164,12 +160,8 @@ def test_load_env_ignores_empty_values(
     assert "MINICODE_MODEL" not in os.environ
 
 
-def test_load_env_strips_whitespace(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    (tmp_path / ".env").write_text(
-        'DEEPSEEK_API_KEY="  sk-test  "\n', encoding="utf-8"
-    )
+def test_load_env_strips_whitespace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / ".env").write_text('DEEPSEEK_API_KEY="  sk-test  "\n', encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
 
@@ -197,13 +189,7 @@ class FakeAgent:
         self.thread_ids.append(config["configurable"]["thread_id"])
         if self.fail_on_call == len(self.calls):
             raise RuntimeError("boom")
-        yield {
-            "model": {
-                "messages": [
-                    SimpleNamespace(type="ai", tool_calls=[], content="done")
-                ]
-            }
-        }
+        yield {"model": {"messages": [SimpleNamespace(type="ai", tool_calls=[], content="done")]}}
 
 
 def test_interactive_loop_runs_turn(monkeypatch: pytest.MonkeyPatch) -> None:

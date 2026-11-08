@@ -60,9 +60,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         path = Path(args.json)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"\nreport: {path}")
 
     if args.keep:
@@ -72,11 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     if baselines == ["bare"]:
         return 0
 
-    non_bare = [
-        summary
-        for baseline, summary in report["baselines"].items()
-        if baseline != "bare"
-    ]
+    non_bare = [summary for baseline, summary in report["baselines"].items() if baseline != "bare"]
     if non_bare:
         passed = all(summary["passed"] == summary["tasks"] for summary in non_bare)
     else:

@@ -83,7 +83,7 @@ def shell_hint() -> str:
 
 
 def resolve_model(model: str | None = None) -> str:
-    return model or os.getenv("MINICODE_MODEL", DEFAULT_MODEL)
+    return model or os.getenv("MINICODE_MODEL") or DEFAULT_MODEL
 
 
 def resolve_root(root: str | Path | None = None) -> Path:
@@ -95,11 +95,7 @@ def resolve_root(root: str | Path | None = None) -> Path:
 
 def shell_env() -> dict[str, str]:
     """Return only the environment variables needed to run shell commands."""
-    return {
-        key: value
-        for key, value in os.environ.items()
-        if key.upper() in SHELL_ENV_ALLOWLIST
-    }
+    return {key: value for key, value in os.environ.items() if key.upper() in SHELL_ENV_ALLOWLIST}
 
 
 def resolve_db_path(root: Path, db_path: str | Path | None = None) -> Path:
@@ -111,9 +107,7 @@ def resolve_db_path(root: Path, db_path: str | Path | None = None) -> Path:
     return path
 
 
-def build_checkpointer(
-    root: Path, db_path: str | Path | None = None
-) -> SqliteSaver:
+def build_checkpointer(root: Path, db_path: str | Path | None = None) -> SqliteSaver:
     path = resolve_db_path(root, db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, check_same_thread=False)
