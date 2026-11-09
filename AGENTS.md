@@ -23,7 +23,7 @@
 - 更新锁文件：`uv lock`（升级用 `uv lock --upgrade`）
 - 运行单个测试：`uv run pytest tests/test_cli.py::test_parser_defaults`；全量：`uv run pytest -q`
 - 覆盖率测试：`uv run pytest -q --cov=minicode --cov-report=term-missing`；下限 50%，配置在 `pyproject.toml`；新增代码需自带测试，不要靠降低下限过 CI
-- live 测试：`uv run pytest -m live -q`；默认 `pytest` 不跑，需要 `DEEPSEEK_API_KEY`，有 API 成本
+- live 测试：`uv run pytest -m live -q`；默认 `pytest` 不跑，仅支持 DeepSeek，需要 `DEEPSEEK_API_KEY`，缺 key 会失败，有 API 成本
 - 代码检查：`uv run ruff check .`；格式检查：`uv run ruff format --check .`；格式化：`uv run ruff format .`
 - 类型检查：`uv run mypy src`
 - 任务评测：`uv run minicode eval --baseline full --json evals/results/smoke-full.json`；`--baseline all` 同时跑 `bare`；20 个 fixture 任务在 `evals/tasks/`

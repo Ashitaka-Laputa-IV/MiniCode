@@ -17,9 +17,9 @@ def live_model() -> BaseChatModel:
     load_env()
     model = resolve_model()
     if not model.startswith("deepseek:"):
-        pytest.skip(f"live tests currently require a DeepSeek model, got {model}")
+        pytest.fail(f"live tests currently require a DeepSeek model, got {model}")
     if not os.getenv("DEEPSEEK_API_KEY"):
-        pytest.skip("DEEPSEEK_API_KEY is not set")
+        pytest.fail("DEEPSEEK_API_KEY is not set; add it to the shell or .env")
     return init_chat_model(model, temperature=0)
 
 
@@ -44,7 +44,9 @@ def test_live_agent_replies(tmp_path: Path, live_model: BaseChatModel) -> None:
             ]
         }
     )
-    assert "ok" in final_text(result["messages"]).lower()
+    text = final_text(result["messages"]).strip().lower()
+    assert text, "expected a non-empty final AI message"
+    assert text.startswith("ok")
 
 
 def test_live_agent_uses_tools(tmp_path: Path, live_model: BaseChatModel) -> None:

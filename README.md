@@ -128,7 +128,8 @@ Live tests call a real model and are excluded from the default run:
 uv run pytest -m live -q
 ```
 
-They require `DEEPSEEK_API_KEY` and are never part of PR CI. Use the
+They require `DEEPSEEK_API_KEY`, currently support DeepSeek models only, and
+fail when the key or model is missing. They are never part of PR CI. Use the
 **Live tests** workflow in the Actions tab for a manual run.
 
 PR CI runs unit tests and static checks only and never calls a model. Live evals
