@@ -68,15 +68,32 @@ def message_text(message: Any) -> str:
 
 
 def reasoning_text(message: Any) -> str:
-    """Return reasoning content from a LangChain message, if present."""
+    """Return all reasoning text from a LangChain message, if present."""
+    parts: list[str] = []
     for block in getattr(message, "content_blocks", None) or []:
-        if isinstance(block, dict) and block.get("type") == "reasoning":
+        if not isinstance(block, dict):
+            continue
+        kind = block.get("type")
+        text = ""
+        if kind == "reasoning":
             text = block.get("reasoning", "")
-            if text:
-                return str(text)
+            if not text:
+                summary = block.get("summary", [])
+                if isinstance(summary, list):
+                    text = "".join(
+                        str(part.get("text", "")) for part in summary if isinstance(part, dict)
+                    )
+        elif kind == "non_standard":
+            value = block.get("value")
+            if isinstance(value, dict) and value.get("type") in {"thinking", "reasoning"}:
+                text = value.get("thinking") or value.get("reasoning") or ""
+        if text:
+            parts.append(str(text))
+    if parts:
+        return "\n".join(parts)
     additional_kwargs = getattr(message, "additional_kwargs", None) or {}
-    text = additional_kwargs.get("reasoning_content")
-    return text if isinstance(text, str) else ""
+    reasoning_content = additional_kwargs.get("reasoning_content")
+    return reasoning_content if isinstance(reasoning_content, str) else ""
 
 
 def short_json(value: Any, limit: int = 160) -> str:
@@ -87,7 +104,7 @@ def short_json(value: Any, limit: int = 160) -> str:
     return text if len(text) <= limit else text[: limit - 3] + "..."
 
 
-def print_update(update: Any, console: Console) -> Any:
+def print_update(update: Any, console: Console, show_thinking: bool = True) -> Any:
     """Print tool activity from one stream update; return the last AI message."""
     if not isinstance(update, dict):
         return None
@@ -101,7 +118,7 @@ def print_update(update: Any, console: Console) -> Any:
             continue
 
         for message in messages:
-            if getattr(message, "type", None) == "ai":
+            if show_thinking and getattr(message, "type", None) == "ai":
                 reasoning = reasoning_text(message)
                 if reasoning:
                     console.print("[dim]thinking[/]")
@@ -152,6 +169,7 @@ def run_turn(
     prompt: str,
     progress: Console,
     config: dict[str, Any],
+    show_thinking: bool = True,
 ) -> Any:
     """Run one user turn and return the final AI message."""
     final_message = None
@@ -160,7 +178,7 @@ def run_turn(
         config=config,
         stream_mode="updates",
     ):
-        message = print_update(update, progress)
+        message = print_update(update, progress, show_thinking=show_thinking)
         if message is not None:
             final_message = message
     return final_message
@@ -184,6 +202,7 @@ def interactive_loop(
     output: Console,
     config: dict[str, Any],
     debug: bool,
+    show_thinking: bool = True,
 ) -> int:
     """Run a simple REPL until EOF or /exit."""
     output.print("[bold]Interactive mode[/] [dim]Type /help for commands, /exit to quit.[/]")
@@ -209,7 +228,7 @@ def interactive_loop(
             continue
 
         try:
-            final_message = run_turn(agent, prompt, progress, config)
+            final_message = run_turn(agent, prompt, progress, config, show_thinking=show_thinking)
         except KeyboardInterrupt:
             reset_thread(config, agent)
             progress.print("[yellow]Interrupted. Context reset.[/]")
@@ -247,6 +266,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--debug",
         action="store_true",
         help="enable Deep Agents debug logging",
+    )
+    parser.add_argument(
+        "--no-thinking",
+        dest="show_thinking",
+        action="store_false",
+        help="do not print model reasoning to stderr",
     )
     parser.add_argument(
         "-i",
@@ -316,12 +341,25 @@ def main(argv: list[str] | None = None) -> int:
         config = make_config(thread_id)
 
         if prompt:
-            final_message = run_turn(agent, prompt, progress, config)
+            final_message = run_turn(
+                agent,
+                prompt,
+                progress,
+                config,
+                show_thinking=args.show_thinking,
+            )
             if final_message is not None:
                 print_final(final_message, output)
             return 0
 
-        return interactive_loop(agent, progress, output, config, args.debug)
+        return interactive_loop(
+            agent,
+            progress,
+            output,
+            config,
+            args.debug,
+            show_thinking=args.show_thinking,
+        )
     except KeyboardInterrupt:
         progress.print("\n[yellow]Interrupted.[/]")
         return 130

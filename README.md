@@ -81,7 +81,7 @@ Install that provider's integration package first, for example `uv add langchain
 
 When the selected model emits reasoning, MiniCode prints it to stderr as a dim
 `thinking` block before tool calls and the final answer. stdout still contains
-only the final answer.
+only the final answer. Use `--no-thinking` to suppress it.
 
 ## Task evals
 

@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from langchain_core.messages import AIMessage
 from rich.console import Console
 
 from minicode.cli import (
@@ -42,6 +43,38 @@ def test_reasoning_text_from_content_blocks() -> None:
         ]
     )
     assert reasoning_text(message) == "plan"
+
+
+def test_reasoning_text_from_real_ai_message() -> None:
+    message = AIMessage(content="answer", additional_kwargs={"reasoning_content": "plan"})
+    assert reasoning_text(message) == "plan"
+
+
+def test_reasoning_text_from_summary() -> None:
+    message = AIMessage(
+        content=[
+            {
+                "type": "reasoning",
+                "summary": [{"type": "summary_text", "text": "plan"}],
+            }
+        ]
+    )
+    assert reasoning_text(message) == "plan"
+
+
+def test_reasoning_text_from_non_standard_thinking() -> None:
+    message = AIMessage(content=[{"type": "thinking", "thinking": "plan", "signature": "s"}])
+    assert reasoning_text(message) == "plan"
+
+
+def test_reasoning_text_joins_multiple_blocks() -> None:
+    message = AIMessage(
+        content=[
+            {"type": "reasoning", "reasoning": "first"},
+            {"type": "reasoning", "reasoning": "second"},
+        ]
+    )
+    assert reasoning_text(message) == "first\nsecond"
 
 
 def test_reasoning_text_from_additional_kwargs() -> None:
@@ -111,6 +144,20 @@ def test_print_update_renders_reasoning() -> None:
     assert "ls" in text
 
 
+def test_print_update_hides_reasoning_when_disabled() -> None:
+    console = Console(record=True, width=200, force_terminal=False)
+    message = SimpleNamespace(
+        type="ai",
+        tool_calls=[],
+        content="done",
+        content_blocks=[{"type": "reasoning", "reasoning": "plan"}],
+    )
+
+    print_update({"done": {"messages": [message]}}, console, show_thinking=False)
+
+    assert "thinking" not in console.export_text()
+
+
 def test_print_update_ignores_missing_reasoning() -> None:
     console = Console(record=True, width=200, force_terminal=False)
     final = SimpleNamespace(type="ai", tool_calls=[], content="done")
@@ -148,6 +195,11 @@ def test_parser_defaults() -> None:
     assert args.interactive is False
     assert args.thread is None
     assert args.db is None
+    assert args.show_thinking is True
+
+
+def test_parser_no_thinking() -> None:
+    assert build_parser().parse_args(["--no-thinking"]).show_thinking is False
 
 
 def test_parser_thread_and_db() -> None:
@@ -359,8 +411,9 @@ def test_main_passes_sqlite_options(monkeypatch: pytest.MonkeyPatch) -> None:
         captured["build"] = kwargs
         return object()
 
-    def fake_loop(agent, progress, output, config, debug):
+    def fake_loop(agent, progress, output, config, debug, show_thinking=True):
         captured["config"] = config
+        captured["show_thinking"] = show_thinking
         return 0
 
     monkeypatch.setattr("minicode.cli.build_agent", fake_build_agent)
@@ -369,6 +422,7 @@ def test_main_passes_sqlite_options(monkeypatch: pytest.MonkeyPatch) -> None:
     assert main(["-i", "--db", "state.sqlite", "--thread", "work"]) == 0
     assert captured["build"]["db_path"] == "state.sqlite"
     assert captured["build"]["checkpoint"] is True
+    assert captured["show_thinking"] is True
     assert captured["config"] == {"configurable": {"thread_id": "work"}}
 
 
