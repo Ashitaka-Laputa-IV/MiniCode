@@ -13,6 +13,7 @@ class FakeAgent:
         self.updates = updates
 
     def stream(self, input: Any, stream_mode: str):
+        assert input == {"messages": [{"role": "user", "content": "prompt"}]}
         assert stream_mode == "updates"
         yield from self.updates
 
@@ -163,6 +164,16 @@ def test_run_full_rejects_tool_limit(monkeypatch: pytest.MonkeyPatch, tmp_path: 
         worker.run_full("prompt", tmp_path, None, 1)
 
 
+def test_run_full_allows_exact_tool_limit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    updates = [{"model": {"messages": [ai_message(tool_calls=[{"name": "one"}])]}}]
+    monkeypatch.setattr(worker, "build_agent", lambda **kwargs: FakeAgent(updates))
+
+    result = worker.run_full("prompt", tmp_path, None, 1)
+
+    assert result["tool_calls"] == 1
+    assert result["final"] == ""
+
+
 def test_run_bare(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(worker, "init_chat_model", lambda model: FakeModel())
 
@@ -178,16 +189,23 @@ def test_worker_main_full(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
     prompt = tmp_path / "prompt.md"
     prompt.write_text("task", encoding="utf-8")
     output = tmp_path / "worker.json"
-    monkeypatch.setattr(
-        worker,
-        "run_full",
-        lambda *args: {
+    calls: dict = {}
+
+    def fake_run_full(prompt: str, root: Path, model: str | None, max_tool_calls: int):
+        calls.update(
+            prompt=prompt,
+            root=root,
+            model=model,
+            max_tool_calls=max_tool_calls,
+        )
+        return {
             "final": "ok",
             "tool_calls": 0,
             "usage": {},
             "duration_s": 0.1,
-        },
-    )
+        }
+
+    monkeypatch.setattr(worker, "run_full", fake_run_full)
 
     assert (
         worker.main(
@@ -198,6 +216,10 @@ def test_worker_main_full(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
                 str(tmp_path),
                 "--output",
                 str(output),
+                "--model",
+                "deepseek:deepseek-flash",
+                "--max-tool-calls",
+                "7",
             ]
         )
         == 0
@@ -206,22 +228,30 @@ def test_worker_main_full(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
     assert data["ok"] is True
     assert data["baseline"] == "full"
     assert data["error"] is None
+    assert calls == {
+        "prompt": "task",
+        "root": tmp_path,
+        "model": "deepseek:deepseek-flash",
+        "max_tool_calls": 7,
+    }
 
 
 def test_worker_main_bare(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     prompt = tmp_path / "prompt.md"
     prompt.write_text("task", encoding="utf-8")
     output = tmp_path / "worker.json"
-    monkeypatch.setattr(
-        worker,
-        "run_bare",
-        lambda *args: {
+    calls: dict = {}
+
+    def fake_run_bare(prompt: str, model: str | None):
+        calls.update(prompt=prompt, model=model)
+        return {
             "final": "bare",
             "tool_calls": 0,
             "usage": {},
             "duration_s": 0.1,
-        },
-    )
+        }
+
+    monkeypatch.setattr(worker, "run_bare", fake_run_bare)
 
     assert (
         worker.main(
@@ -234,6 +264,8 @@ def test_worker_main_bare(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
                 str(output),
                 "--baseline",
                 "bare",
+                "--model",
+                "deepseek:deepseek-flash",
             ]
         )
         == 0
@@ -241,6 +273,7 @@ def test_worker_main_bare(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
     data = json.loads(output.read_text(encoding="utf-8"))
     assert data["ok"] is True
     assert data["baseline"] == "bare"
+    assert calls == {"prompt": "task", "model": "deepseek:deepseek-flash"}
 
 
 def test_worker_main_records_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
