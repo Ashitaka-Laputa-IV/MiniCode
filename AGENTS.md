@@ -93,6 +93,15 @@ set "BOT_SCRIPT=C:\Users\Ashit\.config\ashitaka-bot\bot.py"
 - `$BOT pr create` 默认 `--base dev`，`--head` 默认当前分支；会拒绝从 `dev`/`main`/`master` 发起，也拒绝 `head == base`。
 - 不要在 `dev`、`main` 上直接提交。另起 `feat/...`、`fix/...` 等分支，PR 基分支为 `dev`。
 
+## 审阅与合并身份：必须使用号主
+
+提交、推送和创建 PR 使用 `Ashitaka-Bot`；但审阅和合并属于号主操作：
+
+- PR review、review 回复、审阅总结必须使用号主账号 `Ashitaka-Laputa-IV` 发布，不要用 `Ashitaka-Bot` 或 `$BOT pr comment` 代替。
+- Agent 不得自行合并 PR，也不得使用 bot 身份合并；需要合并时由号主账号执行。
+- Agent 可以准备审阅文案、回复内容或合并说明，但最终发布和合并由号主完成。
+- 如果本地使用 `gh`，先确认登录的是号主账号；不要用 bot token 执行 review 或 merge。
+
 ## 标准提交流程
 
 1. 确认/获取 `dev`，从它切分支：`git switch -c feat/<name> origin/dev`
@@ -111,4 +120,4 @@ $BOT setup                  # 每个仓库首次 push 前执行一次
 $BOT api GET /repos/{repo}/pulls/29
 ```
 
-`$BOT api` 的路径支持 `{repo}` 占位符；`pr comment <number> --body-file <file>` 可用于回复 PR。
+`$BOT api` 的路径支持 `{repo}` 占位符。`$BOT pr comment` 不要在审阅回复或合并流程中使用；这些操作由号主身份完成。
