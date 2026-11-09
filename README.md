@@ -122,6 +122,16 @@ Format changed files with `uv run ruff format .`. Coverage must stay at or above
 coverage improves. New code should come with tests rather than relying on the
 floor.
 
+Live tests call a real model and are excluded from the default run:
+
+```bash
+uv run pytest -m live -q
+```
+
+They require `DEEPSEEK_API_KEY`, currently support DeepSeek models only, and
+fail when the key or model is missing. They are never part of PR CI. Use the
+**Live tests** workflow in the Actions tab for a manual run.
+
 PR CI runs unit tests and static checks only and never calls a model. Live evals
 are manual: use the **Live eval** workflow in the Actions tab (it requires a
 `DEEPSEEK_API_KEY` repository secret) or run the commands above locally. See
