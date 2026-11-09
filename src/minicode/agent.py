@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from deepagents import create_deep_agent
 from deepagents.backends import LocalShellBackend
+from langchain_core.language_models import BaseChatModel
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 if TYPE_CHECKING:
@@ -15,6 +16,8 @@ if TYPE_CHECKING:
 
 DEFAULT_MODEL = "deepseek:deepseek-flash"
 DEFAULT_CHECKPOINT_DB = Path(".minicode") / "checkpoints.sqlite"
+
+ModelInput = str | BaseChatModel | None
 
 SHELL_ENV_ALLOWLIST = {
     "ALLUSERSPROFILE",
@@ -83,7 +86,7 @@ def shell_hint() -> str:
 
 
 def resolve_model(model: str | None = None) -> str:
-    return model or os.getenv("MINICODE_MODEL", DEFAULT_MODEL)
+    return (model or "").strip() or os.getenv("MINICODE_MODEL", "").strip() or DEFAULT_MODEL
 
 
 def resolve_root(root: str | Path | None = None) -> Path:
@@ -95,11 +98,7 @@ def resolve_root(root: str | Path | None = None) -> Path:
 
 def shell_env() -> dict[str, str]:
     """Return only the environment variables needed to run shell commands."""
-    return {
-        key: value
-        for key, value in os.environ.items()
-        if key.upper() in SHELL_ENV_ALLOWLIST
-    }
+    return {key: value for key, value in os.environ.items() if key.upper() in SHELL_ENV_ALLOWLIST}
 
 
 def resolve_db_path(root: Path, db_path: str | Path | None = None) -> Path:
@@ -111,9 +110,7 @@ def resolve_db_path(root: Path, db_path: str | Path | None = None) -> Path:
     return path
 
 
-def build_checkpointer(
-    root: Path, db_path: str | Path | None = None
-) -> SqliteSaver:
+def build_checkpointer(root: Path, db_path: str | Path | None = None) -> SqliteSaver:
     path = resolve_db_path(root, db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, check_same_thread=False)
@@ -130,7 +127,7 @@ def close_checkpointer(agent: "CompiledStateGraph") -> None:
 
 def build_agent(
     *,
-    model: str | None = None,
+    model: ModelInput = None,
     root: str | Path | None = None,
     debug: bool = False,
     checkpoint: bool = False,
@@ -142,7 +139,7 @@ def build_agent(
     close it with :func:`close_checkpointer` when the agent is no longer used.
     """
     root_path = resolve_root(root)
-    model_name = resolve_model(model)
+    model_name = model if isinstance(model, BaseChatModel) else resolve_model(model)
 
     backend = LocalShellBackend(
         root_dir=root_path,

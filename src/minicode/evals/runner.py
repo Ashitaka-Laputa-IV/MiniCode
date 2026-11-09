@@ -22,9 +22,9 @@ from rich.table import Table
 from minicode.agent import shell_env
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-EVALS_DIR = Path(
-    os.environ.get("MINICODE_EVALS_DIR", PROJECT_ROOT / "evals")
-).expanduser().resolve()
+EVALS_DIR = (
+    Path(os.environ.get("MINICODE_EVALS_DIR", PROJECT_ROOT / "evals")).expanduser().resolve()
+)
 TASKS_DIR = EVALS_DIR / "tasks"
 SUITES_DIR = EVALS_DIR / "suites"
 PRICING_FILE = EVALS_DIR / "pricing.toml"
@@ -94,9 +94,7 @@ def cost_for(model: str, usage: dict[str, int], pricing: dict[str, dict[str, flo
     prices = pricing.get(model, {})
     cached = usage.get("cached_input_tokens", 0)
     uncached = max(usage.get("input_tokens", 0) - cached, 0)
-    cached_price = prices.get(
-        "cached_input_per_million", prices.get("input_per_million", 0.0)
-    )
+    cached_price = prices.get("cached_input_per_million", prices.get("input_per_million", 0.0))
     return (
         uncached * prices.get("input_per_million", 0.0)
         + cached * cached_price
@@ -122,9 +120,7 @@ def worker_env(workspace: Path) -> dict[str, str]:
     return env
 
 
-def failed_result(
-    task: Task, baseline: str, error: str, duration_s: float = 0.0
-) -> dict[str, Any]:
+def failed_result(task: Task, baseline: str, error: str, duration_s: float = 0.0) -> dict[str, Any]:
     return {
         "id": task.id,
         "category": task.category,
@@ -176,9 +172,7 @@ def run_verify(task: Task, workspace: Path) -> tuple[bool, str]:
                 errors="replace",
                 timeout=task.verify_timeout_seconds,
             )
-            collected = sum(
-                1 for line in collect.stdout.splitlines() if "::" in line
-            )
+            collected = sum(1 for line in collect.stdout.splitlines() if "::" in line)
             if collect.returncode != 0:
                 return False, (collect.stdout + "\n" + collect.stderr).strip()[-4000:]
             if collected == 0:
@@ -206,9 +200,7 @@ def run_verify(task: Task, workspace: Path) -> tuple[bool, str]:
         if command and command[0] in {"python", "python3"}:
             command[0] = sys.executable
         if command[:3] == [sys.executable, "-m", "pytest"]:
-            command.extend(
-                ["-c", str(SAFE_PYTEST_INI), "-p", "no:cacheprovider"]
-            )
+            command.extend(["-c", str(SAFE_PYTEST_INI), "-p", "no:cacheprovider"])
 
     try:
         proc = subprocess.run(
@@ -362,9 +354,7 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
         "tasks": len(results),
         "passed": passed,
         "pass_at_1": round(passed / len(results), 4),
-        "avg_tool_calls": round(
-            sum(result["tool_calls"] for result in results) / len(results), 2
-        ),
+        "avg_tool_calls": round(sum(result["tool_calls"] for result in results) / len(results), 2),
         "input_tokens": usage["input_tokens"],
         "output_tokens": usage["output_tokens"],
         "cached_input_tokens": usage["cached_input_tokens"],
@@ -407,9 +397,7 @@ def run_suite(
                         pricing=pricing,
                     )
                 except Exception as exc:
-                    result = failed_result(
-                        task, baseline, f"{type(exc).__name__}: {exc}"
-                    )
+                    result = failed_result(task, baseline, f"{type(exc).__name__}: {exc}")
                 results.append(result)
     finally:
         if not keep:

@@ -69,6 +69,14 @@ Rules:
 
 Update `pricing.toml` when provider prices change.
 
+## CI
+
+PR CI runs unit tests and static checks only; it never calls a model. The
+**Live eval** GitHub Actions workflow is manual (`workflow_dispatch`) and
+requires the `DEEPSEEK_API_KEY` repository secret. It uploads the JSON report as
+an artifact. Live evals cost money and take several minutes, so do not add them
+to pull request checks.
+
 ## Adding a task
 
 1. Create `evals/tasks/<id>/fixture/` with a minimal failing repository.
