@@ -156,6 +156,22 @@ def test_run_full_without_ai_message(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert result["usage"] == {}
 
 
+def test_run_full_uses_yolo_for_non_interactive_eval(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict = {}
+
+    def fake_build_agent(**kwargs):
+        captured.update(kwargs)
+        return FakeAgent([])
+
+    monkeypatch.setattr(worker, "build_agent", fake_build_agent)
+
+    worker.run_full("prompt", tmp_path, None, 5)
+
+    assert captured["permission_mode"] == "yolo"
+
+
 def test_run_full_rejects_tool_limit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     updates = [{"model": {"messages": [ai_message(tool_calls=[{"name": "one"}, {"name": "two"}])]}}]
     monkeypatch.setattr(worker, "build_agent", lambda **kwargs: FakeAgent(updates))

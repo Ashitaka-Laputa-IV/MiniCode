@@ -7,6 +7,7 @@ import sys
 from typing import Any
 
 from dotenv import dotenv_values, find_dotenv
+from langgraph.types import Command
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.markup import escape
@@ -18,6 +19,7 @@ from .agent import (
     resolve_model,
     resolve_root,
 )
+from .policy import PermissionMode
 
 ENV_ALLOWLIST = {
     "ANTHROPIC_API_KEY",
@@ -164,6 +166,60 @@ def print_error(console: Console, exc: Exception) -> None:
         console.print(f"[red]minicode:[/] {escape(str(exc))}")
 
 
+def ask_approval(interrupt: Any, progress: Console) -> list[dict[str, str]]:
+    """Ask the user to approve each action in one interrupt."""
+    value = getattr(interrupt, "value", {})
+    action_requests = value.get("action_requests", []) if isinstance(value, dict) else []
+    decisions: list[dict[str, str]] = []
+    interactive = sys.stdin.isatty()
+
+    for action in action_requests:
+        name = str(action.get("name", "tool"))
+        args = action.get("args", {})
+        description = action.get("description") or f"Tool: {name}\nArgs: {short_json(args)}"
+        progress.print(f"[yellow]approval required[/] [bold]{escape(name)}[/]")
+        progress.print(str(description), markup=False, style="dim", soft_wrap=True)
+
+        if not interactive:
+            progress.print("[yellow]stdin is not a TTY; rejecting[/]")
+            decisions.append(
+                {
+                    "type": "reject",
+                    "message": (
+                        "Approval is required, but stdin is not a TTY. "
+                        "Re-run with --permission-mode yolo or an explicit shell allow-list."
+                    ),
+                }
+            )
+            continue
+
+        answer = progress.input("[bold]approve?[/] [dim]\\[y/N][/] ").strip().lower()
+        if answer in {"y", "yes"}:
+            decisions.append({"type": "approve"})
+        else:
+            decisions.append(
+                {
+                    "type": "reject",
+                    "message": "User rejected this action. Do not retry it.",
+                }
+            )
+
+    return decisions
+
+
+def resume_command(interrupts: list[Any], progress: Console) -> Command:
+    """Build the LangGraph resume command for one or more pending interrupts."""
+    if len(interrupts) == 1:
+        return Command(resume={"decisions": ask_approval(interrupts[0], progress)})
+
+    return Command(
+        resume={
+            interrupt.id: {"decisions": ask_approval(interrupt, progress)}
+            for interrupt in interrupts
+        }
+    )
+
+
 def run_turn(
     agent: Any,
     prompt: str,
@@ -171,16 +227,28 @@ def run_turn(
     config: dict[str, Any],
     show_thinking: bool = True,
 ) -> Any:
-    """Run one user turn and return the final AI message."""
+    """Run one user turn, handling human-in-the-loop interrupts."""
     final_message = None
-    for update in agent.stream(
-        {"messages": [{"role": "user", "content": prompt}]},
-        config=config,
-        stream_mode="updates",
-    ):
-        message = print_update(update, progress, show_thinking=show_thinking)
-        if message is not None:
-            final_message = message
+    stream_input: Any = {"messages": [{"role": "user", "content": prompt}]}
+
+    while True:
+        pending: list[Any] = []
+        for update in agent.stream(
+            stream_input,
+            config=config,
+            stream_mode="updates",
+        ):
+            if isinstance(update, dict) and "__interrupt__" in update:
+                pending.extend(update["__interrupt__"])
+                continue
+            message = print_update(update, progress, show_thinking=show_thinking)
+            if message is not None:
+                final_message = message
+
+        if not pending:
+            break
+        stream_input = resume_command(pending, progress)
+
     return final_message
 
 
@@ -268,6 +336,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="enable Deep Agents debug logging",
     )
     parser.add_argument(
+        "--permission-mode",
+        choices=[mode.value for mode in PermissionMode],
+        type=PermissionMode.parse,
+        default=os.getenv("MINICODE_PERMISSION_MODE", PermissionMode.ASK.value),
+        help=(
+            "read-only denies writes/shell changes; ask (default) requires approval "
+            "for risky actions; yolo skips approval"
+        ),
+    )
+    parser.add_argument(
+        "--shell-allow-list",
+        default=os.getenv("MINICODE_SHELL_ALLOW_LIST"),
+        help=("comma-separated shell command prefixes to auto-approve, or 'recommended' / 'all'"),
+    )
+    parser.add_argument(
         "--no-thinking",
         dest="show_thinking",
         action="store_false",
@@ -337,6 +420,8 @@ def main(argv: list[str] | None = None) -> int:
             debug=args.debug,
             checkpoint=not bool(prompt),
             db_path=args.db,
+            permission_mode=args.permission_mode,
+            shell_allow_list=args.shell_allow_list,
         )
         config = make_config(thread_id)
 

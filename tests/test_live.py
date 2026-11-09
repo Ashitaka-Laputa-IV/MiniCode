@@ -33,7 +33,7 @@ def final_text(messages: list[Any]) -> str:
 
 
 def test_live_agent_replies(tmp_path: Path, live_model: BaseChatModel) -> None:
-    agent = build_agent(model=live_model, root=tmp_path)
+    agent = build_agent(model=live_model, root=tmp_path, permission_mode="yolo")
     result = agent.invoke(
         {
             "messages": [
@@ -51,7 +51,7 @@ def test_live_agent_replies(tmp_path: Path, live_model: BaseChatModel) -> None:
 
 def test_live_agent_uses_tools(tmp_path: Path, live_model: BaseChatModel) -> None:
     (tmp_path / "live-marker.txt").write_text("marker", encoding="utf-8")
-    agent = build_agent(model=live_model, root=tmp_path)
+    agent = build_agent(model=live_model, root=tmp_path, permission_mode="yolo")
     result = agent.invoke(
         {
             "messages": [
