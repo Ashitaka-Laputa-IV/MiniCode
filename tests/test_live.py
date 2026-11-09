@@ -46,7 +46,7 @@ def test_live_agent_replies(tmp_path: Path, live_model: BaseChatModel) -> None:
     )
     text = final_text(result["messages"]).strip().lower()
     assert text, "expected a non-empty final AI message"
-    assert text.startswith("ok")
+    assert text.rstrip(".!") == "ok", f"expected an 'ok' reply, got {text!r}"
 
 
 def test_live_agent_uses_tools(tmp_path: Path, live_model: BaseChatModel) -> None:
