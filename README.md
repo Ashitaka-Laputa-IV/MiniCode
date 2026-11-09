@@ -122,7 +122,7 @@ uv run pytest -q --cov=minicode --cov-report=term-missing
 ```
 
 Format changed files with `uv run ruff format .`. Coverage must stay at or above
-50%; the floor is configured in `pyproject.toml` and should be raised as
+70%; the floor is configured in `pyproject.toml` and should be raised as
 coverage improves. New code should come with tests rather than relying on the
 floor.
 

@@ -59,7 +59,7 @@ check_untyped_defs = true
 source = ["minicode"]
 
 [tool.coverage.report]
-fail_under = 50
+fail_under = 70
 omit = [
     "src/minicode/__main__.py",
     "src/minicode/evals/__main__.py",
