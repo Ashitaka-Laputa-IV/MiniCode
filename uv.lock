@@ -1087,6 +1087,7 @@ source = { editable = "." }
 dependencies = [
     { name = "deepagents" },
     { name = "langchain" },
+    { name = "langchain-core" },
     { name = "langchain-deepseek" },
     { name = "langgraph" },
     { name = "langgraph-checkpoint-sqlite" },
@@ -1106,6 +1107,7 @@ dev = [
 requires-dist = [
     { name = "deepagents", specifier = ">=0.7.34" },
     { name = "langchain", specifier = ">=1.4.9" },
+    { name = "langchain-core", specifier = ">=1.7.6" },
     { name = "langchain-deepseek", specifier = ">=1.1.1" },
     { name = "langgraph", specifier = ">=1.2.20" },
     { name = "langgraph-checkpoint-sqlite", specifier = ">=3.1.3" },
