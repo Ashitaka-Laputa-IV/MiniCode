@@ -15,6 +15,7 @@ from minicode.cli import (
     message_text,
     print_final,
     print_update,
+    reasoning_text,
     short_json,
 )
 
@@ -31,6 +32,28 @@ def test_message_text_content_blocks() -> None:
         ]
     }
     assert message_text(message) == "first\nsecond"
+
+
+def test_reasoning_text_from_content_blocks() -> None:
+    message = SimpleNamespace(
+        content_blocks=[
+            {"type": "text", "text": "answer"},
+            {"type": "reasoning", "reasoning": "plan"},
+        ]
+    )
+    assert reasoning_text(message) == "plan"
+
+
+def test_reasoning_text_from_additional_kwargs() -> None:
+    message = SimpleNamespace(
+        content_blocks=[],
+        additional_kwargs={"reasoning_content": "fallback"},
+    )
+    assert reasoning_text(message) == "fallback"
+
+
+def test_reasoning_text_missing() -> None:
+    assert reasoning_text(SimpleNamespace(content_blocks=[])) == ""
 
 
 def test_short_json_truncates() -> None:
@@ -61,6 +84,41 @@ def test_print_update_renders_tool_activity() -> None:
     text = console.export_text()
     assert "ls" in text
     assert "/a /b" in text
+
+
+def test_print_update_renders_reasoning() -> None:
+    console = Console(record=True, width=200, force_terminal=False)
+    tool_call = SimpleNamespace(
+        type="ai",
+        tool_calls=[{"name": "ls", "args": {"path": "/"}}],
+        content="",
+        content_blocks=[{"type": "reasoning", "reasoning": "plan"}],
+    )
+    final = SimpleNamespace(type="ai", tool_calls=[], content="done")
+
+    message = print_update(
+        {
+            "model": {"messages": [tool_call]},
+            "done": {"messages": [final]},
+        },
+        console,
+    )
+
+    assert message is final
+    text = console.export_text()
+    assert "thinking" in text
+    assert "plan" in text
+    assert "ls" in text
+
+
+def test_print_update_ignores_missing_reasoning() -> None:
+    console = Console(record=True, width=200, force_terminal=False)
+    final = SimpleNamespace(type="ai", tool_calls=[], content="done")
+
+    message = print_update({"done": {"messages": [final]}}, console)
+
+    assert message is final
+    assert "thinking" not in console.export_text()
 
 
 def test_print_final_uses_raw_text_when_not_terminal() -> None:

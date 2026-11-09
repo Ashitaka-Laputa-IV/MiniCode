@@ -67,6 +67,18 @@ def message_text(message: Any) -> str:
     return str(content)
 
 
+def reasoning_text(message: Any) -> str:
+    """Return reasoning content from a LangChain message, if present."""
+    for block in getattr(message, "content_blocks", None) or []:
+        if isinstance(block, dict) and block.get("type") == "reasoning":
+            text = block.get("reasoning", "")
+            if text:
+                return str(text)
+    additional_kwargs = getattr(message, "additional_kwargs", None) or {}
+    text = additional_kwargs.get("reasoning_content")
+    return text if isinstance(text, str) else ""
+
+
 def short_json(value: Any, limit: int = 160) -> str:
     try:
         text = json.dumps(value, ensure_ascii=False, default=str)
@@ -89,6 +101,12 @@ def print_update(update: Any, console: Console) -> Any:
             continue
 
         for message in messages:
+            if getattr(message, "type", None) == "ai":
+                reasoning = reasoning_text(message)
+                if reasoning:
+                    console.print("[dim]thinking[/]")
+                    console.print(reasoning, markup=False, style="dim", soft_wrap=True)
+
             tool_calls = getattr(message, "tool_calls", None) or []
             if tool_calls:
                 for call in tool_calls:
