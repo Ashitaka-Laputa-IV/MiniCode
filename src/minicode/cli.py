@@ -80,7 +80,7 @@ def reasoning_text(message: Any) -> str:
             if not text:
                 summary = block.get("summary", [])
                 if isinstance(summary, list):
-                    text = "".join(
+                    text = "\n".join(
                         str(part.get("text", "")) for part in summary if isinstance(part, dict)
                     )
         elif kind == "non_standard":

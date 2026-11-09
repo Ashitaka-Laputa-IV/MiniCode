@@ -62,6 +62,21 @@ def test_reasoning_text_from_summary() -> None:
     assert reasoning_text(message) == "plan"
 
 
+def test_reasoning_text_joins_summary_parts() -> None:
+    message = AIMessage(
+        content=[
+            {
+                "type": "reasoning",
+                "summary": [
+                    {"type": "summary_text", "text": "first"},
+                    {"type": "summary_text", "text": "second"},
+                ],
+            }
+        ]
+    )
+    assert reasoning_text(message) == "first\nsecond"
+
+
 def test_reasoning_text_from_non_standard_thinking() -> None:
     message = AIMessage(content=[{"type": "thinking", "thinking": "plan", "signature": "s"}])
     assert reasoning_text(message) == "plan"
