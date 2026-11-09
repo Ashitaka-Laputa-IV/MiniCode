@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import time
 import traceback
 from pathlib import Path
@@ -144,9 +143,7 @@ def main(argv: list[str] | None = None) -> int:
             "duration_s": 0.0,
         }
 
-    Path(args.output).write_text(
-        json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    Path(args.output).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     return 0
 
 

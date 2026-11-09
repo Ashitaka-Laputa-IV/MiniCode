@@ -19,9 +19,7 @@ def test_smoke_suite_has_twenty_tasks() -> None:
             assert task.verify_script.is_file()
 
 
-def test_verify_env_excludes_secrets(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_verify_env_excludes_secrets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DEEPSEEK_API_KEY", "secret")
     env = verification_env(tmp_path)
     assert "DEEPSEEK_API_KEY" not in env

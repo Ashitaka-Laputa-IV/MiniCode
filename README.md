@@ -1,5 +1,7 @@
 # MiniCode
 
+[![CI](https://github.com/Ashitaka-Laputa-IV/MiniCode/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/Ashitaka-Laputa-IV/MiniCode/actions/workflows/ci.yml)
+
 Minimal coding agent built on the [Deep Agents](https://docs.langchain.com/oss/python/deepagents/overview) harness.
 
 It runs a task or an interactive session against a workspace using the harness's filesystem tools, shell execution, planning, and subagents.
@@ -102,6 +104,28 @@ sandbox against a malicious agent.
 Task definitions live in `evals/tasks/`, the suite in
 `evals/suites/smoke.toml`, and the runner in `src/minicode/evals/`. See
 [`evals/README.md`](evals/README.md) for the task format.
+
+## Development
+
+Run the same checks locally that PR CI runs:
+
+```bash
+uv sync --locked
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy src
+uv run pytest -q --cov=minicode --cov-report=term-missing
+```
+
+Format changed files with `uv run ruff format .`. Coverage must stay at or above
+50%; the floor is configured in `pyproject.toml` and should be raised as
+coverage improves. New code should come with tests rather than relying on the
+floor.
+
+PR CI runs unit tests and static checks only and never calls a model. Live evals
+are manual: use the **Live eval** workflow in the Actions tab (it requires a
+`DEEPSEEK_API_KEY` repository secret) or run the commands above locally. See
+[`evals/README.md`](evals/README.md) for details and cost notes.
 
 ## Safety
 

@@ -36,6 +36,17 @@ def test_resolve_model_empty_falls_back(monkeypatch: pytest.MonkeyPatch) -> None
     assert resolve_model("") == DEFAULT_MODEL
 
 
+def test_resolve_model_env_empty_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MINICODE_MODEL", "")
+    assert resolve_model() == DEFAULT_MODEL
+
+
+def test_resolve_model_whitespace_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MINICODE_MODEL", "   ")
+    assert resolve_model() == DEFAULT_MODEL
+    assert resolve_model("   ") == DEFAULT_MODEL
+
+
 def test_resolve_root_missing(tmp_path: Path) -> None:
     missing = tmp_path / "missing"
     with pytest.raises(ValueError, match="not a directory"):
@@ -103,9 +114,7 @@ def test_resolve_db_path_default(tmp_path: Path) -> None:
 
 
 def test_resolve_db_path_relative_to_root(tmp_path: Path) -> None:
-    assert resolve_db_path(tmp_path, "state/agent.sqlite") == (
-        tmp_path / "state/agent.sqlite"
-    )
+    assert resolve_db_path(tmp_path, "state/agent.sqlite") == (tmp_path / "state/agent.sqlite")
 
 
 def test_resolve_db_path_absolute(tmp_path: Path) -> None:

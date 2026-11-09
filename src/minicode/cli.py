@@ -102,8 +102,7 @@ def print_update(update: Any, console: Console) -> Any:
                 name = getattr(message, "name", "tool")
                 text = message_text(message).strip().replace("\n", " ")
                 console.print(
-                    f"[green]<-[/] [bold]{escape(str(name))}[/] "
-                    f"[dim]{escape(text[:200])}[/]"
+                    f"[green]<-[/] [bold]{escape(str(name))}[/] [dim]{escape(text[:200])}[/]"
                 )
             elif getattr(message, "type", None) == "ai":
                 final = message
@@ -121,12 +120,7 @@ def print_final(message: Any, output: Console) -> None:
 
 def print_error(console: Console, exc: Exception) -> None:
     text = str(exc).lower()
-    if (
-        "api key" in text
-        or "api_key" in text
-        or "authentication" in text
-        or "unauthorized" in text
-    ):
+    if "api key" in text or "api_key" in text or "authentication" in text or "unauthorized" in text:
         console.print(
             "[red]minicode:[/] provider API key is missing or invalid. "
             "Set it for the selected model, or pass --model for another provider."
@@ -174,9 +168,7 @@ def interactive_loop(
     debug: bool,
 ) -> int:
     """Run a simple REPL until EOF or /exit."""
-    output.print(
-        "[bold]Interactive mode[/] [dim]Type /help for commands, /exit to quit.[/]"
-    )
+    output.print("[bold]Interactive mode[/] [dim]Type /help for commands, /exit to quit.[/]")
 
     while True:
         try:
@@ -255,10 +247,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--db",
         default=None,
-        help=(
-            "SQLite checkpoint path, file only "
-            "(default: <root>/.minicode/checkpoints.sqlite)"
-        ),
+        help=("SQLite checkpoint path, file only (default: <root>/.minicode/checkpoints.sqlite)"),
     )
     return parser
 
@@ -287,7 +276,7 @@ def main(argv: list[str] | None = None) -> int:
     if prompt and (args.db or args.thread):
         parser.error("--db and --thread require interactive mode")
     if not prompt and not args.interactive and not sys.stdin.isatty():
-        parser.error("provide a task, e.g. minicode \"fix the failing test\"")
+        parser.error('provide a task, e.g. minicode "fix the failing test"')
 
     agent = None
     try:
