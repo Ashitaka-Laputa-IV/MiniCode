@@ -149,8 +149,8 @@ MiniCode defaults to `ask` mode. Tool calls are gated before execution:
 - `ask` (default): file writes/deletes and risky shell commands require
   approval; safe read-only commands run directly. Without a TTY, gated actions
   are rejected instead of blocking.
-- `yolo`: skips approvals, but catastrophic commands on the hard deny-list are
-  still blocked.
+- `yolo`: skips approvals, but common catastrophic commands on the hard
+  deny-list are still blocked.
 
 ```bash
 uv run minicode --permission-mode read-only "review this change"

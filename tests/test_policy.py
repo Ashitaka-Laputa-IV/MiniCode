@@ -144,6 +144,39 @@ def test_ask_mode_allows_safe_commands() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git log --pretty='%h (%s)'",
+        "grep 'foo(bar)' notes.md",
+        "cat 'a&b' logs.txt",
+        "grep '| sh' notes.md",
+        "cat docs/--output.md",
+    ],
+)
+def test_quoted_literals_do_not_trigger_shell_metacharacters(command: str) -> None:
+    assert Policy(PermissionMode.READ_ONLY).evaluate_command(command).action == DecisionAction.ALLOW
+    assert Policy(PermissionMode.ASK).evaluate_command(command).action == DecisionAction.ALLOW
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "sudo rm -rf /",
+        "sudo -u root rm -rf /",
+        "bash -c 'rm -rf /'",
+        "cmd /c 'format C:'",
+        "rm -rf $HOME",
+        "rm -rf ${HOME}/*",
+        "rm -rf ~/*",
+        "rm -rf -- /",
+    ],
+)
+def test_hard_deny_unwraps_wrappers_and_home_targets(command: str) -> None:
+    for mode in PermissionMode:
+        assert Policy(mode).evaluate_command(command).action == DecisionAction.DENY
+
+
 def test_yolo_allows_non_denied_commands() -> None:
     policy = Policy(PermissionMode.YOLO)
     assert policy.evaluate_command("echo hi").action == DecisionAction.ALLOW

@@ -155,11 +155,60 @@ def _segments(command: str) -> list[str]:
     return [segment.strip() for segment in _SEGMENT_SPLIT.split(command) if segment.strip()]
 
 
+def _syntax_view(command: str) -> str:
+    """Return command text with quoted literals blanked, keeping expansions."""
+    result: list[str] = []
+    quote: str | None = None
+    escaped = False
+    for char in command:
+        if escaped:
+            result.append(" ")
+            escaped = False
+            continue
+        if quote == "'":
+            if char == "'":
+                quote = None
+            result.append(" ")
+            continue
+        if quote == '"':
+            if char == "\\":
+                escaped = True
+                result.append(" ")
+                continue
+            if char == '"':
+                quote = None
+                result.append(" ")
+                continue
+            # $ and backticks still expand inside double quotes.
+            result.append(char if char in "$`" else " ")
+            continue
+        if char in {"'", '"'}:
+            quote = char
+            result.append(" ")
+            continue
+        if char == "\\":
+            escaped = True
+            result.append(" ")
+            continue
+        result.append(char)
+    return "".join(result)
+
+
 def _tokens(segment: str) -> list[str]:
     try:
         return shlex.split(segment, posix=True)
     except ValueError:
         return segment.split()
+
+
+def _has_unsafe_arg(segment: str) -> bool:
+    for token in _tokens(segment):
+        lowered = token.lower()
+        if lowered in _SAFE_ARG_DENY:
+            return True
+        if any(lowered.startswith(arg + "=") for arg in _SAFE_ARG_DENY):
+            return True
+    return False
 
 
 def _first_token(segment: str) -> str:
@@ -175,7 +224,12 @@ def _rm_denied(rest: list[str]) -> bool:
     flags = [item for item in rest if item.startswith("-")]
     targets = [item for item in rest if not item.startswith("-")]
     recursive = any(item == "--recursive" or _short_flag(item, "r") for item in flags)
-    catastrophic = any(item in _CATASTROPHIC_TARGETS or item.startswith("/*") for item in targets)
+    catastrophic = any(
+        item in _CATASTROPHIC_TARGETS
+        or item.startswith("/*")
+        or item.startswith(("$home", "${home}", "~/"))
+        for item in targets
+    )
     if recursive and catastrophic:
         return True
     return "--no-preserve-root" in flags and any(
@@ -194,12 +248,36 @@ def _rd_denied(rest: list[str]) -> bool:
     return _del_denied(rest)
 
 
-def _segment_hard_denied(segment: str) -> bool:
+def _strip_sudo(tokens: list[str]) -> list[str]:
+    index = 1
+    value_flags = {"-u", "-g", "-p", "-C", "-h", "-r", "-t"}
+    while index < len(tokens):
+        token = tokens[index]
+        if not token.startswith("-"):
+            break
+        index += 1
+        if token.lower() in value_flags and index < len(tokens):
+            index += 1
+    return tokens[index:]
+
+
+def _segment_hard_denied(segment: str, depth: int = 0) -> bool:
+    if depth > 3:
+        return False
     tokens = _tokens(segment)
     if not tokens:
         return False
+    if tokens[0].lower() == "sudo":
+        tokens = _strip_sudo(tokens)
+        if not tokens:
+            return False
     first = tokens[0].lower()
     rest = [item.lower() for item in tokens[1:]]
+
+    if first in {"sh", "bash", "zsh", "pwsh", "powershell", "cmd"}:
+        for index, token in enumerate(tokens[1:], start=1):
+            if token.lower() in {"-c", "/c", "-command"} and index + 1 < len(tokens):
+                return _segment_hard_denied(tokens[index + 1], depth + 1)
 
     if first in {"shutdown", "reboot", "fdisk", "diskpart"}:
         return True
@@ -229,7 +307,8 @@ def _segment_hard_denied(segment: str) -> bool:
 
 
 def _is_hard_denied(command: str) -> bool:
-    if any(pattern.search(command) for pattern in _RAW_DENY_PATTERNS):
+    view = _syntax_view(command)
+    if any(pattern.search(view) for pattern in _RAW_DENY_PATTERNS):
         return True
     return any(_segment_hard_denied(segment) for segment in _segments(command))
 
@@ -317,23 +396,24 @@ class Policy:
         return self.mode != PermissionMode.READ_ONLY
 
     def _is_safe(self, command: str) -> bool:
-        if _REDIRECT_PATTERN.search(command) or _SHELL_META_PATTERN.search(command):
+        view = _syntax_view(command)
+        if _REDIRECT_PATTERN.search(view) or _SHELL_META_PATTERN.search(view):
             return False
-        segments = _segments(command)
+        segments = _segments(view)
         if not segments:
             return False
-        for segment in segments:
-            if any(arg in segment.lower() for arg in _SAFE_ARG_DENY):
-                return False
+        if any(_has_unsafe_arg(segment) for segment in segments):
+            return False
         return all(
             any(_matches_prefix(segment, prefix) for prefix in self._allow_commands)
             for segment in segments
         )
 
     def _is_network(self, command: str) -> bool:
-        if _URL_PATTERN.search(command):
+        view = _syntax_view(command)
+        if _URL_PATTERN.search(view):
             return True
-        for segment in _segments(command):
+        for segment in _segments(view):
             lowered = segment.lower()
             if _first_token(segment) in NETWORK_COMMANDS:
                 return True
@@ -342,9 +422,10 @@ class Policy:
         return False
 
     def _is_mutating(self, command: str) -> bool:
-        if _REDIRECT_PATTERN.search(command):
+        view = _syntax_view(command)
+        if _REDIRECT_PATTERN.search(view):
             return True
-        for segment in _segments(command):
+        for segment in _segments(view):
             lowered = segment.lower()
             if _first_token(segment) in MUTATING_COMMANDS:
                 return True
