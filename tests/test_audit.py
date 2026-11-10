@@ -1,5 +1,7 @@
 import io
 import json
+import os
+import stat
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -46,6 +48,16 @@ def test_audit_logger_appends_events(tmp_path: Path) -> None:
     audit.log("result", tool="execute", ok=True)
 
     assert [event["event"] for event in read_events(path)] == ["policy", "result"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits")
+def test_audit_log_and_directory_use_private_permissions(tmp_path: Path) -> None:
+    audit, path = make_audit(tmp_path)
+
+    audit.log("policy", tool="execute")
+
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
 
 
 def test_audit_logger_warns_once_when_unavailable(

@@ -48,6 +48,21 @@ def test_quoted_assignment_with_spaces_is_redacted() -> None:
     assert redacted == 'password="***"'
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"token": "SECRETVALUE123"}',
+        "{'password': 'SECRETVALUE123'}",
+        '{"api_key": "SECRETVALUE123"}',
+    ],
+)
+def test_quoted_json_keys_are_redacted(text: str) -> None:
+    redacted = redact_text(text)
+
+    assert "SECRETVALUE123" not in redacted
+    assert redacted.count("***") == 1
+
+
 def test_url_password_is_redacted() -> None:
     redacted = redact_text("https://user:supersecret@example.com/repo")
 
@@ -150,6 +165,53 @@ def test_display_args_preview_is_redacted_before_truncating() -> None:
     )
 
     assert "prefix *** suffix" == display["content_preview"]
+
+
+def test_display_args_redacts_secret_across_preview_boundary() -> None:
+    content = "x" * 195 + "sk-abcdefghijklmnopqrstuvwxyz"
+    display = display_args("write_file", {"file_path": "/notes.txt", "content": content})
+
+    assert "sk-" not in display["content_preview"]
+    assert "***" in display["content_preview"]
+
+
+def test_summarize_unknown_tool_redacts_and_truncates() -> None:
+    payload = "x" * 195 + "sk-abcdefghijklmnopqrstuvwxyz"
+    summary = summarize_args("custom_tool", {"payload": payload})
+
+    assert "sk-" not in summary["payload"]
+    assert len(summary["payload"]) <= 200
+
+
+def test_summarize_unknown_tool_respects_non_string_values() -> None:
+    summary = summarize_args(
+        "custom_tool",
+        {"count": 3, "flag": True, "nested": {"token": "SECRETVALUE123"}},
+    )
+
+    assert summary["count"] == 3
+    assert summary["flag"] is True
+    assert "SECRETVALUE123" not in str(summary["nested"])
+
+
+def test_summarize_unknown_tool_redacts_sensitive_keys() -> None:
+    summary = summarize_args(
+        "custom_tool",
+        {"token": "SECRETVALUE123", "password": None, "note": "ok"},
+    )
+
+    assert summary["token"] == "***"
+    assert summary["password"] is None
+    assert summary["note"] == "ok"
+
+
+def test_summarize_unknown_tool_truncates_nested_values() -> None:
+    summary = summarize_args(
+        "custom_tool",
+        {"nested": {"values": ["x" * 300]}},
+    )
+
+    assert len(summary["nested"]["values"][0]) == 200
 
 
 def test_normal_paths_are_not_mistaken_for_secrets() -> None:

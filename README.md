@@ -181,14 +181,20 @@ The log links three event types so a tool call can be traced end to end:
 
 Commands and argument strings pass through best-effort secret redaction
 (provider keys, GitHub/Slack/AWS/Google tokens, bearer headers, URL passwords,
-and common `key=value` assignments). File contents are never written to the
-log; writes record only the path and byte count. Redaction cannot recognize
-every custom secret format, so do not treat the log as a safe place for
-arbitrary data.
+JSON/Python dict keys, and common `key=value` assignments). Unknown tool string
+arguments are redacted and truncated to 200 characters. File-tool contents are
+not written to the log; `write_file` and `edit_file` record only the path and
+byte count. `execute` records the redacted command text, which may itself embed
+file content (for example a heredoc or `python -c` script). Redaction cannot
+recognize every custom secret format, so do not treat the log as a safe place
+for arbitrary data.
 
 Audit writes fail open: if the log cannot be written, MiniCode prints one
 warning to stderr and keeps working. The file is append-only and local but not
-tamper-proof; it is intended for local traceability, not compliance.
+tamper-proof; it is intended for local traceability, not compliance. The log is
+a security record, so `read-only` mode still writes it by default; use
+`--no-audit` or `--audit-log` to disable or redirect it. On POSIX the audit file
+is created with mode `0600` and its directory with `0700`.
 
 ## Safety
 

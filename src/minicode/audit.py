@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import getpass
 import json
+import os
 import sys
 import threading
 from datetime import datetime
@@ -46,10 +47,17 @@ class AuditLogger:
         safe = redact_value(record)
         line = json.dumps(safe, ensure_ascii=False, default=str)
         try:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
             with self._lock:
-                with self.path.open("a", encoding="utf-8") as handle:
+                fd = os.open(
+                    self.path,
+                    os.O_APPEND | os.O_CREAT | os.O_WRONLY,
+                    0o600,
+                )
+                with os.fdopen(fd, "a", encoding="utf-8") as handle:
                     handle.write(line + "\n")
+                if os.name != "nt":
+                    os.chmod(self.path, 0o600)
         except (OSError, ValueError) as exc:
             if not self._warned:
                 print(f"minicode: audit log unavailable: {exc}", file=sys.stderr)

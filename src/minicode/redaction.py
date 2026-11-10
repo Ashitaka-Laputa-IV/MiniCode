@@ -5,24 +5,29 @@ from __future__ import annotations
 import re
 from typing import Any
 
+# No leading word boundary: secrets can be embedded in a longer string or
+# cross a truncation boundary. A false positive is safer than leaking a key.
 _TOKEN_PATTERNS = (
-    re.compile(r"\bsk-[A-Za-z0-9_-]{8,}\b"),
-    re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"),
-    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"),
-    re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"),
-    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
-    re.compile(r"\bAIza[0-9A-Za-z_-]{20,}\b"),
+    re.compile(r"sk-[A-Za-z0-9_-]{8,}\b"),
+    re.compile(r"gh[pousr]_[A-Za-z0-9]{20,}\b"),
+    re.compile(r"github_pat_[A-Za-z0-9_]{20,}\b"),
+    re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}\b"),
+    re.compile(r"AKIA[0-9A-Z]{16}\b"),
+    re.compile(r"AIza[0-9A-Za-z_-]{20,}\b"),
 )
+_SENSITIVE_KEY_PATTERN = re.compile(r"(?i)(api[_-]?key|token|secret|password|passwd|authorization)")
 
 _BEARER_PATTERN = re.compile(r"(?i)\b(Bearer\s+)([A-Za-z0-9._~+/=-]{8,})")
 _URL_CREDENTIALS = re.compile(r"(?i)(https?://[^/\s:@]+:)([^@\s/]+)(@)")
 _AUTH_HEADER = re.compile(r"(?i)\b(authorization\s*:\s*)[^\r\n]+")
 _ASSIGNMENT_PATTERN = re.compile(
-    r"(?i)\b([A-Za-z0-9_]*(?:api[_-]?key|token|secret|password|passwd)[A-Za-z0-9_]*)"
-    r"(\s*[:=]\s*)"
+    r"(?i)(?P<key_quote>['\"]?)"
+    r"(?P<key>[A-Za-z0-9_]*(?:api[_-]?key|token|secret|password|passwd)[A-Za-z0-9_]*)"
+    r"(?P=key_quote)"
+    r"(?P<separator>\s*[:=]\s*)"
     r"(?:"
-    r"(['\"])(.*?)\3"
-    r"|([^\s'\";]+)"
+    r"(?P<value_quote>['\"])(?P<quoted_value>.*?)(?P=value_quote)"
+    r"|(?P<plain_value>[^\s'\";]+)"
     r")"
 )
 _CLI_SECRET_ARG = re.compile(
@@ -31,10 +36,11 @@ _CLI_SECRET_ARG = re.compile(
 
 
 def _redact_assignment(match: re.Match[str]) -> str:
-    prefix = f"{match.group(1)}{match.group(2)}"
-    quote = match.group(3)
-    if quote:
-        return f"{prefix}{quote}***{quote}"
+    key_quote = match.group("key_quote")
+    prefix = f"{key_quote}{match.group('key')}{key_quote}{match.group('separator')}"
+    value_quote = match.group("value_quote")
+    if value_quote:
+        return f"{prefix}{value_quote}***{value_quote}"
     return f"{prefix}***"
 
 
@@ -58,17 +64,25 @@ def utf8_len(value: Any) -> int | None:
     return len(value.encode("utf-8")) if isinstance(value, str) else None
 
 
-def redact_value(value: Any) -> Any:
+def redact_value(value: Any, *, limit: int | None = None) -> Any:
     """Recursively redact strings in JSON-compatible values."""
     if isinstance(value, str):
-        return redact_text(value)
+        redacted = redact_text(value)
+        return redacted[:limit] if limit is not None else redacted
     if isinstance(value, dict):
-        return {str(key): redact_value(item) for key, item in value.items()}
+        result: dict[str, Any] = {}
+        for key, item in value.items():
+            key_text = str(key)
+            if _SENSITIVE_KEY_PATTERN.search(key_text):
+                result[key_text] = "***" if item is not None else None
+            else:
+                result[key_text] = redact_value(item, limit=limit)
+        return result
     if isinstance(value, (list, tuple)):
-        return [redact_value(item) for item in value]
+        return [redact_value(item, limit=limit) for item in value]
     if value is None or isinstance(value, (bool, int, float)):
         return value
-    return redact_text(str(value))
+    return redact_value(str(value), limit=limit)
 
 
 def summarize_args(tool: str, args: Any) -> dict[str, Any]:
@@ -95,10 +109,11 @@ def summarize_args(tool: str, args: Any) -> dict[str, Any]:
 
     summarized: dict[str, Any] = {}
     for key, value in args.items():
-        if isinstance(value, str):
-            summarized[str(key)] = redact_text(value[:200])
+        key_text = str(key)
+        if _SENSITIVE_KEY_PATTERN.search(key_text):
+            summarized[key_text] = "***" if value is not None else None
         else:
-            summarized[str(key)] = redact_value(value)
+            summarized[key_text] = redact_value(value, limit=200)
     return summarized
 
 
@@ -110,7 +125,8 @@ def display_args(tool: str, args: Any) -> dict[str, Any]:
         if content is None:
             content = args.get("new_string")
         if isinstance(content, str):
-            preview = redact_text(content[:200])
+            safe_content = redact_text(content)
+            preview = safe_content[:200]
             if len(content) > 200:
                 preview += "..."
             summarized["content_preview"] = preview

@@ -111,6 +111,26 @@ def test_short_json_truncates() -> None:
     assert short_json("x" * 200, limit=10).endswith("...")
 
 
+def test_print_update_redacts_tool_args() -> None:
+    console = Console(record=True, width=200, force_terminal=False)
+    tool_call = SimpleNamespace(
+        type="ai",
+        tool_calls=[
+            {
+                "name": "execute",
+                "args": {"command": "curl -H 'Authorization: Bearer abcdefghijklmnop'"},
+            }
+        ],
+        content="",
+    )
+
+    print_update({"model": {"messages": [tool_call]}}, console)
+
+    text = console.export_text()
+    assert "abcdefghijklmnop" not in text
+    assert "***" in text
+
+
 def test_print_update_renders_tool_activity() -> None:
     console = Console(record=True, width=200, force_terminal=False)
     tool_call = SimpleNamespace(
@@ -244,6 +264,12 @@ def test_parser_audit_options() -> None:
 
     assert args.audit_log == "logs/audit.jsonl"
     assert args.no_audit is True
+
+
+def test_parser_audit_log_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MINICODE_AUDIT_LOG", "logs/from-env.jsonl")
+
+    assert build_parser().parse_args([]).audit_log == "logs/from-env.jsonl"
 
 
 def test_parser_thread_and_db() -> None:

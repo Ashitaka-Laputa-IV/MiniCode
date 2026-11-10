@@ -137,7 +137,7 @@ def print_update(update: Any, console: Console, show_thinking: bool = True) -> A
                     args = call.get("args", {}) if isinstance(call, dict) else {}
                     console.print(
                         f"[bold cyan]->[/] [bold]{escape(str(name))}[/] "
-                        f"[dim]{escape(short_json(args))}[/]"
+                        f"[dim]{escape(short_json(summarize_args(name, args)))}[/]"
                     )
             elif getattr(message, "type", None) == "tool":
                 name = getattr(message, "name", "tool")
