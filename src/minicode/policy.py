@@ -155,6 +155,48 @@ def _segments(command: str) -> list[str]:
     return [segment.strip() for segment in _SEGMENT_SPLIT.split(command) if segment.strip()]
 
 
+def _split_segments(command: str) -> list[str]:
+    """Split compound commands without splitting inside quotes."""
+    segments: list[str] = []
+    buffer: list[str] = []
+    quote: str | None = None
+    escaped = False
+    for char in command:
+        if escaped:
+            buffer.append(char)
+            escaped = False
+            continue
+        if quote == "'":
+            buffer.append(char)
+            if char == "'":
+                quote = None
+            continue
+        if quote == '"':
+            buffer.append(char)
+            if char == "\\":
+                escaped = True
+            elif char == '"':
+                quote = None
+            continue
+        if char in {"'", '"'}:
+            quote = char
+            buffer.append(char)
+            continue
+        if char == "\\":
+            escaped = True
+            buffer.append(char)
+            continue
+        if char in ";&|\n":
+            if buffer:
+                segments.append("".join(buffer).strip())
+                buffer = []
+            continue
+        buffer.append(char)
+    if buffer:
+        segments.append("".join(buffer).strip())
+    return [segment for segment in segments if segment]
+
+
 def _syntax_view(command: str) -> str:
     """Return command text with quoted literals blanked, keeping expansions."""
     result: list[str] = []
@@ -261,23 +303,38 @@ def _strip_sudo(tokens: list[str]) -> list[str]:
     return tokens[index:]
 
 
+def _strip_prefixes(tokens: list[str]) -> list[str]:
+    while tokens:
+        first = tokens[0].lower()
+        if first == "sudo":
+            tokens = _strip_sudo(tokens)
+            continue
+        if first in {"nohup", "exec", "command", "time"}:
+            tokens = tokens[1:]
+            continue
+        if first == "env":
+            index = 1
+            while index < len(tokens) and (tokens[index].startswith("-") or "=" in tokens[index]):
+                index += 1
+            tokens = tokens[index:]
+            continue
+        break
+    return tokens
+
+
 def _segment_hard_denied(segment: str, depth: int = 0) -> bool:
-    if depth > 3:
+    if depth > 4:
         return False
-    tokens = _tokens(segment)
+    tokens = _strip_prefixes(_tokens(segment))
     if not tokens:
         return False
-    if tokens[0].lower() == "sudo":
-        tokens = _strip_sudo(tokens)
-        if not tokens:
-            return False
     first = tokens[0].lower()
     rest = [item.lower() for item in tokens[1:]]
 
     if first in {"sh", "bash", "zsh", "pwsh", "powershell", "cmd"}:
         for index, token in enumerate(tokens[1:], start=1):
             if token.lower() in {"-c", "/c", "-command"} and index + 1 < len(tokens):
-                return _segment_hard_denied(tokens[index + 1], depth + 1)
+                return _is_hard_denied(tokens[index + 1], depth + 1)
 
     if first in {"shutdown", "reboot", "fdisk", "diskpart"}:
         return True
@@ -306,11 +363,13 @@ def _segment_hard_denied(segment: str, depth: int = 0) -> bool:
     return False
 
 
-def _is_hard_denied(command: str) -> bool:
+def _is_hard_denied(command: str, depth: int = 0) -> bool:
+    if depth > 4:
+        return False
     view = _syntax_view(command)
     if any(pattern.search(view) for pattern in _RAW_DENY_PATTERNS):
         return True
-    return any(_segment_hard_denied(segment) for segment in _segments(command))
+    return any(_segment_hard_denied(segment, depth) for segment in _split_segments(command))
 
 
 def _matches_prefix(segment: str, prefix: str) -> bool:
