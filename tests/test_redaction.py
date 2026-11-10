@@ -168,7 +168,7 @@ def test_display_args_preview_is_redacted_before_truncating() -> None:
 
 
 def test_display_args_redacts_secret_across_preview_boundary() -> None:
-    content = "x" * 195 + "sk-abcdefghijklmnopqrstuvwxyz"
+    content = "x" * 195 + "_sk-abcdefghijklmnopqrstuvwxyz"
     display = display_args("write_file", {"file_path": "/notes.txt", "content": content})
 
     assert "sk-" not in display["content_preview"]
@@ -176,11 +176,23 @@ def test_display_args_redacts_secret_across_preview_boundary() -> None:
 
 
 def test_summarize_unknown_tool_redacts_and_truncates() -> None:
-    payload = "x" * 195 + "sk-abcdefghijklmnopqrstuvwxyz"
+    payload = "x" * 195 + "_sk-abcdefghijklmnopqrstuvwxyz"
     summary = summarize_args("custom_tool", {"payload": payload})
 
     assert "sk-" not in summary["payload"]
     assert len(summary["payload"]) <= 200
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "df -h disk-usage-report",
+        "ls /opt/risk-management",
+        "npm run task-runner-2024",
+    ],
+)
+def test_words_containing_sk_hyphen_are_not_redacted(text: str) -> None:
+    assert redact_text(text) == text
 
 
 def test_summarize_unknown_tool_respects_non_string_values() -> None:

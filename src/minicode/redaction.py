@@ -5,15 +5,15 @@ from __future__ import annotations
 import re
 from typing import Any
 
-# No leading word boundary: secrets can be embedded in a longer string or
-# cross a truncation boundary. A false positive is safer than leaking a key.
+# Allow a non-letter prefix (quotes, =, _, path separators), but do not treat
+# the suffix of an ordinary word such as "risk-management" as a token.
 _TOKEN_PATTERNS = (
-    re.compile(r"sk-[A-Za-z0-9_-]{8,}\b"),
-    re.compile(r"gh[pousr]_[A-Za-z0-9]{20,}\b"),
-    re.compile(r"github_pat_[A-Za-z0-9_]{20,}\b"),
-    re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}\b"),
-    re.compile(r"AKIA[0-9A-Z]{16}\b"),
-    re.compile(r"AIza[0-9A-Za-z_-]{20,}\b"),
+    re.compile(r"(?<![A-Za-z])sk-[A-Za-z0-9_-]{8,}\b"),
+    re.compile(r"(?<![A-Za-z])gh[pousr]_[A-Za-z0-9]{20,}\b"),
+    re.compile(r"(?<![A-Za-z])github_pat_[A-Za-z0-9_]{20,}\b"),
+    re.compile(r"(?<![A-Za-z])xox[baprs]-[A-Za-z0-9-]{10,}\b"),
+    re.compile(r"(?<![A-Za-z])AKIA[0-9A-Z]{16}\b"),
+    re.compile(r"(?<![A-Za-z])AIza[0-9A-Za-z_-]{20,}\b"),
 )
 _SENSITIVE_KEY_PATTERN = re.compile(r"(?i)(api[_-]?key|token|secret|password|passwd|authorization)")
 
