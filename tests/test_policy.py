@@ -78,8 +78,70 @@ def test_ask_mode_asks_for_risky_commands(command: str) -> None:
     assert decision.reason
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        "ls $(rm -rf /tmp/victim)",
+        "ls `rm -rf /tmp/victim`",
+        "ls & curl http://evil.example",
+    ],
+)
+def test_shell_metacharacters_are_not_safe(command: str) -> None:
+    assert Policy(PermissionMode.READ_ONLY).evaluate_command(command).action == DecisionAction.DENY
+    assert Policy(PermissionMode.ASK).evaluate_command(command).action == DecisionAction.ASK
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "find . -delete",
+        "find . -exec rm -rf {} +",
+        "rg --pre 'sh' .",
+        "git diff --output=out.txt",
+        "git diff --ext-diff",
+        "git log --output=out.txt",
+    ],
+)
+def test_safe_commands_reject_dangerous_arguments(command: str) -> None:
+    assert Policy(PermissionMode.READ_ONLY).evaluate_command(command).action == DecisionAction.DENY
+    assert Policy(PermissionMode.ASK).evaluate_command(command).action == DecisionAction.ASK
+
+
+def test_hard_deny_does_not_match_message_text() -> None:
+    for command in (
+        "grep shutdown notes.md",
+        "grep iex docs.md",
+        "git commit -m 'fix reboot bug'",
+    ):
+        assert Policy(PermissionMode.YOLO).evaluate_command(command).action == DecisionAction.ALLOW
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "rm -rf /*",
+        "rm -rf --no-preserve-root /",
+        "rm -r /",
+    ],
+)
+def test_rm_catastrophic_variants_are_denied(command: str) -> None:
+    for mode in PermissionMode:
+        assert Policy(mode).evaluate_command(command).action == DecisionAction.DENY
+
+
+def test_rm_non_root_target_is_not_hard_denied() -> None:
+    assert (
+        Policy(PermissionMode.ASK).evaluate_command("rm -rf /tmp/build").action
+        == DecisionAction.ASK
+    )
+
+
 def test_ask_mode_allows_safe_commands() -> None:
     assert Policy(PermissionMode.ASK).evaluate_command("git status").action == DecisionAction.ALLOW
+    assert (
+        Policy(PermissionMode.ASK).evaluate_command("grep iex docs.md").action
+        == DecisionAction.ALLOW
+    )
 
 
 def test_yolo_allows_non_denied_commands() -> None:

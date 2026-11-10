@@ -174,6 +174,7 @@ def test_run_turn_handles_real_stream_interrupt(
 
     assert message.content == "done"
     assert "approval required" in progress.file.getvalue()
+    assert "echo hitl-ok" in progress.file.getvalue()
     assert "hitl-ok" in progress.file.getvalue()
 
 

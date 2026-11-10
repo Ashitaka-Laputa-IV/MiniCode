@@ -165,8 +165,8 @@ model and provider keys. `--shell-allow-list` also accepts `recommended` or
 
 ## Safety
 
-The agent uses `LocalShellBackend`: it can read and write files and run shell
-commands with your user permissions. Permission modes and the hard deny-list are
+The agent uses `PolicyShellBackend`, which wraps `LocalShellBackend`: it can
+read and write files and run shell commands with your user permissions. Permission modes and the hard deny-list are
 guardrails, **not a sandbox**; a determined command can still reach the host.
 Use the agent only in workspaces you trust, and use a container or VM for
 untrusted code.

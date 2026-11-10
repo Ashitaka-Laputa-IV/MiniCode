@@ -3,7 +3,7 @@
 ## 仓库现状
 
 - Python 项目，使用 uv 管理（`pyproject.toml`、`uv.lock`、`.python-version` 固定 3.13）。
-- 基于 Deep Agents harness：`src/minicode/agent.py` 用 `create_deep_agent` + `LocalShellBackend`；`src/minicode/cli.py` 是入口。测试用 pytest，静态检查用 ruff + mypy，CI 在 GitHub Actions。
+- 基于 Deep Agents harness：`src/minicode/agent.py` 用 `create_deep_agent` + `PolicyShellBackend`（包装 `LocalShellBackend`）；`src/minicode/cli.py` 是入口。测试用 pytest，静态检查用 ruff + mypy，CI 在 GitHub Actions。
 - Agent 拥有当前工作区的文件读写和 shell 执行权限；默认 `ask` 模式通过 HITL 审批，另有 `read-only` / `yolo`。shell 环境变量经过过滤，不继承 provider key。默认模型 `deepseek:deepseek-flash`，用 `--model` 或 `MINICODE_MODEL` 覆盖。
 - 一律使用 uv，不要用 `pip` 或全局 Python；虚拟环境 `.venv/` 由 uv 管理，已加入 `.gitignore`。
 - `dev` 已推送到 `origin`；PR 基分支为 `dev`，功能分支从 `origin/dev` 切出。

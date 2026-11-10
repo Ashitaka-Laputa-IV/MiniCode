@@ -383,6 +383,7 @@ def test_run_turn_approves_interrupt(monkeypatch: pytest.MonkeyPatch) -> None:
     assert agent.inputs[0] == {"messages": [{"role": "user", "content": "do it"}]}
     assert agent.inputs[1].resume == {"decisions": [{"type": "approve"}]}
     assert "approval required" in progress.file.getvalue()
+    assert "echo hi" in progress.file.getvalue()
 
 
 def test_run_turn_rejects_interrupt_without_tty(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -397,6 +398,7 @@ def test_run_turn_rejects_interrupt_without_tty(monkeypatch: pytest.MonkeyPatch)
     assert message.content == "done"
     assert agent.inputs[1].resume["decisions"][0]["type"] == "reject"
     assert "not a TTY" in progress.file.getvalue()
+    assert "echo hi" in progress.file.getvalue()
 
 
 def test_interactive_loop_runs_turn(monkeypatch: pytest.MonkeyPatch) -> None:

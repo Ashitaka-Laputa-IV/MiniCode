@@ -179,6 +179,7 @@ def ask_approval(interrupt: Any, progress: Console) -> list[dict[str, str]]:
         description = action.get("description") or f"Tool: {name}\nArgs: {short_json(args)}"
         progress.print(f"[yellow]approval required[/] [bold]{escape(name)}[/]")
         progress.print(str(description), markup=False, style="dim", soft_wrap=True)
+        progress.print(short_json(args), markup=False, style="dim", soft_wrap=True)
 
         if not interactive:
             progress.print("[yellow]stdin is not a TTY; rejecting[/]")
