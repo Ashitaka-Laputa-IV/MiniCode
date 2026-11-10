@@ -1,7 +1,9 @@
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from minicode.agent import (
@@ -70,7 +72,7 @@ def test_build_agent_checkpointer_is_optional(
 
     monkeypatch.setattr("minicode.agent.create_deep_agent", fake_create)
 
-    build_agent(root=tmp_path)
+    build_agent(root=tmp_path, permission_mode="yolo")
     assert captured["checkpointer"] is None
 
     build_agent(root=tmp_path, checkpoint=True)
@@ -78,6 +80,60 @@ def test_build_agent_checkpointer_is_optional(
     assert isinstance(checkpointer, SqliteSaver)
     assert (tmp_path / DEFAULT_CHECKPOINT_DB).exists()
     checkpointer.conn.close()
+
+
+def test_build_agent_read_only_has_no_hitl(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict = {}
+
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("minicode.agent.create_deep_agent", fake_create)
+
+    build_agent(root=tmp_path, permission_mode="read-only")
+
+    assert captured["interrupt_on"] is None
+    assert captured["checkpointer"] is None
+
+
+def test_build_agent_ask_enables_hitl(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict = {}
+
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("minicode.agent.create_deep_agent", fake_create)
+
+    build_agent(root=tmp_path, permission_mode="ask", shell_allow_list="git status")
+
+    interrupt_on = captured["interrupt_on"]
+    assert {"write_file", "edit_file", "delete", "execute"} <= set(interrupt_on)
+    interrupt = interrupt_on["execute"]
+    assert interrupt["allowed_decisions"] == ["approve", "reject"]
+    assert isinstance(captured["checkpointer"], InMemorySaver)
+
+    when = interrupt["when"]
+    assert when(SimpleNamespace(tool_call={"args": {"command": "echo hi"}})) is True
+    assert when(SimpleNamespace(tool_call={"args": {"command": "git status"}})) is False
+
+
+def test_build_agent_yolo_has_no_permissions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict = {}
+
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("minicode.agent.create_deep_agent", fake_create)
+
+    build_agent(root=tmp_path, permission_mode="yolo")
+
+    assert captured["interrupt_on"] is None
+    assert captured["checkpointer"] is None
 
 
 def test_build_agent_closes_checkpointer_when_create_fails(

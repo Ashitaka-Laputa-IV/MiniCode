@@ -17,8 +17,10 @@ from minicode.cli import (
     print_final,
     print_update,
     reasoning_text,
+    run_turn,
     short_json,
 )
+from minicode.policy import PermissionMode
 
 
 def test_message_text_string() -> None:
@@ -201,7 +203,9 @@ def test_print_final_renders_markdown_on_terminal() -> None:
     assert "# Head" not in output
 
 
-def test_parser_defaults() -> None:
+def test_parser_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("MINICODE_PERMISSION_MODE", raising=False)
+    monkeypatch.delenv("MINICODE_SHELL_ALLOW_LIST", raising=False)
     args = build_parser().parse_args(["fix", "the", "bug"])
     assert args.prompt == ["fix", "the", "bug"]
     assert args.model is None
@@ -211,10 +215,25 @@ def test_parser_defaults() -> None:
     assert args.thread is None
     assert args.db is None
     assert args.show_thinking is True
+    assert args.permission_mode is PermissionMode.ASK
+    assert args.shell_allow_list is None
 
 
 def test_parser_no_thinking() -> None:
     assert build_parser().parse_args(["--no-thinking"]).show_thinking is False
+
+
+def test_parser_permission_options() -> None:
+    args = build_parser().parse_args(
+        [
+            "--permission-mode",
+            "read-only",
+            "--shell-allow-list",
+            "git status,ls",
+        ]
+    )
+    assert args.permission_mode is PermissionMode.READ_ONLY
+    assert args.shell_allow_list == "git status,ls"
 
 
 def test_parser_thread_and_db() -> None:
@@ -315,6 +334,71 @@ class FakeAgent:
         if self.fail_on_call == len(self.calls):
             raise RuntimeError("boom")
         yield {"model": {"messages": [SimpleNamespace(type="ai", tool_calls=[], content="done")]}}
+
+
+class ApprovalAgent:
+    def __init__(self) -> None:
+        self.inputs: list[object] = []
+
+    def stream(self, input, config=None, stream_mode=None):
+        self.inputs.append(input)
+        if len(self.inputs) == 1:
+            yield {
+                "__interrupt__": (
+                    SimpleNamespace(
+                        id="interrupt-1",
+                        value={
+                            "action_requests": [
+                                {
+                                    "name": "execute",
+                                    "args": {"command": "echo hi"},
+                                    "description": "Shell command requires approval",
+                                }
+                            ],
+                            "review_configs": [
+                                {
+                                    "action_name": "execute",
+                                    "allowed_decisions": ["approve", "reject"],
+                                }
+                            ],
+                        },
+                    ),
+                )
+            }
+            return
+        yield {"model": {"messages": [SimpleNamespace(type="ai", tool_calls=[], content="done")]}}
+
+
+def test_run_turn_approves_interrupt(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr(Console, "input", lambda self, prompt="": "y")
+
+    agent = ApprovalAgent()
+    progress = Console(file=io.StringIO(), force_terminal=False, soft_wrap=True)
+    config = {"configurable": {"thread_id": "test"}}
+
+    message = run_turn(agent, "do it", progress, config)
+
+    assert message.content == "done"
+    assert agent.inputs[0] == {"messages": [{"role": "user", "content": "do it"}]}
+    assert agent.inputs[1].resume == {"decisions": [{"type": "approve"}]}
+    assert "approval required" in progress.file.getvalue()
+    assert "echo hi" in progress.file.getvalue()
+
+
+def test_run_turn_rejects_interrupt_without_tty(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+
+    agent = ApprovalAgent()
+    progress = Console(file=io.StringIO(), force_terminal=False, soft_wrap=True)
+    config = {"configurable": {"thread_id": "test"}}
+
+    message = run_turn(agent, "do it", progress, config)
+
+    assert message.content == "done"
+    assert agent.inputs[1].resume["decisions"][0]["type"] == "reject"
+    assert "not a TTY" in progress.file.getvalue()
+    assert "echo hi" in progress.file.getvalue()
 
 
 def test_interactive_loop_runs_turn(monkeypatch: pytest.MonkeyPatch) -> None:

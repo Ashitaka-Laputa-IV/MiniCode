@@ -3,8 +3,8 @@
 ## 仓库现状
 
 - Python 项目，使用 uv 管理（`pyproject.toml`、`uv.lock`、`.python-version` 固定 3.13）。
-- 基于 Deep Agents harness：`src/minicode/agent.py` 用 `create_deep_agent` + `LocalShellBackend`；`src/minicode/cli.py` 是入口。测试用 pytest，静态检查用 ruff + mypy，CI 在 GitHub Actions。
-- Agent 拥有当前工作区的文件读写和 shell 执行权限，没有 HITL 审批；shell 环境变量经过过滤，不继承 provider key。默认模型 `deepseek:deepseek-flash`，用 `--model` 或 `MINICODE_MODEL` 覆盖。
+- 基于 Deep Agents harness：`src/minicode/agent.py` 用 `create_deep_agent` + `PolicyShellBackend`（包装 `LocalShellBackend`）；`src/minicode/cli.py` 是入口。测试用 pytest，静态检查用 ruff + mypy，CI 在 GitHub Actions。
+- Agent 拥有当前工作区的文件读写和 shell 执行权限；默认 `ask` 模式通过 HITL 审批，另有 `read-only` / `yolo`。shell 环境变量经过过滤，不继承 provider key。默认模型 `deepseek:deepseek-flash`，用 `--model` 或 `MINICODE_MODEL` 覆盖。
 - 一律使用 uv，不要用 `pip` 或全局 Python；虚拟环境 `.venv/` 由 uv 管理，已加入 `.gitignore`。
 - `dev` 已推送到 `origin`；PR 基分支为 `dev`，功能分支从 `origin/dev` 切出。
 
@@ -18,6 +18,9 @@
 - 默认 thread `default`；同一 workspace 并行 REPL 要显式用不同 `--thread`/`--db`，避免 `database is locked` 或 checkpoint 交错
 - `.minicode/` 和 `*.sqlite*` 已忽略；数据库包含对话和工具输出，不要提交
 - 模型：`--model <provider:model>` 或环境变量 `MINICODE_MODEL`；默认 `deepseek:deepseek-flash`，需要 `DEEPSEEK_API_KEY`
+- 权限模式：`--permission-mode read-only|ask|yolo` 或 `MINICODE_PERMISSION_MODE`；默认 `ask`，非 TTY 下 gated action 会被拒绝
+- shell allow-list：`--shell-allow-list "git status,uv run pytest"` 或 `MINICODE_SHELL_ALLOW_LIST`；也支持 `recommended` / `all`
+- 权限策略是 guardrail，不是 sandbox；不可信任务仍需容器/VM。eval worker 在非交互环境显式使用 `yolo`
 - 环境变量：CLI 自动加载当前目录或祖先目录的 `.env`，但只应用 `MINICODE_MODEL` 和已知 provider key，忽略 base URL/endpoint 类变量；shell 已有变量优先。`.env` 已被忽略，提交 `.env.example`，不要把真实 key 写入版本库
 - 添加依赖：`uv add <pkg>`；开发依赖：`uv add --dev <pkg>`
 - 更新锁文件：`uv lock`（升级用 `uv lock --upgrade`）

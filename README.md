@@ -141,12 +141,35 @@ are manual: use the **Live eval** workflow in the Actions tab (it requires a
 `DEEPSEEK_API_KEY` repository secret) or run the commands above locally. See
 [`evals/README.md`](evals/README.md) for details and cost notes.
 
+## Permissions
+
+MiniCode defaults to `ask` mode. Tool calls are gated before execution:
+
+- `read-only`: file writes/deletes and non-safe shell commands are denied.
+- `ask` (default): file writes/deletes and risky shell commands require
+  approval; safe read-only commands run directly. Without a TTY, gated actions
+  are rejected instead of blocking.
+- `yolo`: skips approvals, but common catastrophic commands on the hard
+  deny-list are still blocked.
+
+```bash
+uv run minicode --permission-mode read-only "review this change"
+uv run minicode --permission-mode yolo "fix the tests"
+uv run minicode --shell-allow-list "git status,uv run pytest" "check the tests"
+```
+
+`MINICODE_PERMISSION_MODE` and `MINICODE_SHELL_ALLOW_LIST` provide defaults
+from the shell environment; the `.env` loader intentionally applies only the
+model and provider keys. `--shell-allow-list` also accepts `recommended` or
+`all`.
+
 ## Safety
 
-The agent uses `LocalShellBackend`: it can read and write files and run arbitrary
-shell commands with your user permissions. There is no human-in-the-loop
-approval loop, so destructive commands can run unattended. Use it only in
-workspaces you trust and only for tasks you are willing to let run.
+The agent uses `PolicyShellBackend`, which wraps `LocalShellBackend`: it can
+read and write files and run shell commands with your user permissions. Permission modes and the hard deny-list are
+guardrails, **not a sandbox**; a determined command can still reach the host.
+Use the agent only in workspaces you trust, and use a container or VM for
+untrusted code.
 
 Shell commands receive a filtered environment: common OS/PATH/temp variables
 plus Python and uv paths. Provider API keys are not inherited by the agent's
