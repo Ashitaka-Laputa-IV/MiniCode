@@ -20,7 +20,9 @@
 - 模型：`--model <provider:model>` 或环境变量 `MINICODE_MODEL`；默认 `deepseek:deepseek-flash`，需要 `DEEPSEEK_API_KEY`
 - 权限模式：`--permission-mode read-only|ask|yolo` 或 `MINICODE_PERMISSION_MODE`；默认 `ask`，非 TTY 下 gated action 会被拒绝
 - shell allow-list：`--shell-allow-list "git status,uv run pytest"` 或 `MINICODE_SHELL_ALLOW_LIST`；也支持 `recommended` / `all`
-- 权限策略是 guardrail，不是 sandbox；不可信任务仍需容器/VM。eval worker 在非交互环境显式使用 `yolo`
+- 审计日志：默认 `<root>/.minicode/audit.jsonl`，JSONL，记录 `policy` / `approval` / `result`；`--audit-log <path>` 或 `MINICODE_AUDIT_LOG` 指定，`--no-audit` 关闭
+- 审计内容经过 best-effort secret 脱敏，文件内容不落盘（只记 path 和 byte count）；写失败会 warning 并继续（fail-open），日志不是 tamper-proof
+- 权限策略是 guardrail，不是 sandbox；不可信任务仍需容器/VM。eval worker 在非交互环境显式使用 `yolo`，不写审计日志
 - 环境变量：CLI 自动加载当前目录或祖先目录的 `.env`，但只应用 `MINICODE_MODEL` 和已知 provider key，忽略 base URL/endpoint 类变量；shell 已有变量优先。`.env` 已被忽略，提交 `.env.example`，不要把真实 key 写入版本库
 - 添加依赖：`uv add <pkg>`；开发依赖：`uv add --dev <pkg>`
 - 更新锁文件：`uv lock`（升级用 `uv lock --upgrade`）
