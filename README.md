@@ -163,6 +163,28 @@ from the shell environment; the `.env` loader intentionally applies only the
 model and provider keys. `--shell-allow-list` also accepts `recommended` or
 `all`.
 
+## Audit (experimental)
+
+`--audit` records the session as a signed, tamper-evident Tracekit run. It is
+opt-in and does not change permissions or approvals:
+
+```bash
+uv run minicode --audit --permission-mode yolo "fix the tests"
+uv run tracekit last
+uv run tracekit view --dev
+```
+
+`tracekit last` exports the latest finished run and verifies it offline.
+`tracekit view --dev` shows the recorded calls while the same-user dev signer
+still holds their redacted content (7 days). The `.tkb` bundle keeps hashes
+and commitments by default, not readable prompts or tool output.
+
+This is evidence, not a sandbox or a replacement for `--permission-mode`.
+Tracekit runs as your user in dev mode, so it cannot protect against an agent
+that deliberately rewrites the record. On Windows, approvals are unavailable;
+tools rejected by MiniCode's own HITL gate are not recorded because they never
+reach the instrumented tool node.
+
 ## Safety
 
 The agent uses `PolicyShellBackend`, which wraps `LocalShellBackend`: it can

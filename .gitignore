@@ -51,5 +51,9 @@ desktop.ini
 .minicode/
 *.sqlite*
 
+# Tracekit audit artifacts
+*.tkb
+*.trust.json
+
 # Evaluation reports and fixture work dirs
 evals/results/

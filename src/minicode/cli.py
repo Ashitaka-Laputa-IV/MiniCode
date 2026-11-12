@@ -19,6 +19,7 @@ from .agent import (
     resolve_model,
     resolve_root,
 )
+from .audit import audit_hint, start_audit
 from .policy import PermissionMode
 
 ENV_ALLOWLIST = {
@@ -337,6 +338,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="enable Deep Agents debug logging",
     )
     parser.add_argument(
+        "--audit",
+        action="store_true",
+        help="record a signed Tracekit audit run for this session",
+    )
+    parser.add_argument(
         "--permission-mode",
         choices=[mode.value for mode in PermissionMode],
         type=PermissionMode.parse,
@@ -406,8 +412,11 @@ def main(argv: list[str] | None = None) -> int:
         parser.error('provide a task, e.g. minicode "fix the failing test"')
 
     agent = None
+    audit_run = None
     try:
         thread_id = (args.thread or "default").strip() or "default"
+        if args.audit:
+            audit_run = start_audit()
         if args.debug:
             model_name = resolve_model(args.model)
             root_path = resolve_root(args.root)
@@ -457,3 +466,5 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         if agent is not None:
             close_checkpointer(agent)
+        if audit_run is not None:
+            progress.print(f"[dim]{escape(audit_hint(audit_run))}[/]")

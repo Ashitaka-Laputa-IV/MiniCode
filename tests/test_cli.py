@@ -217,10 +217,15 @@ def test_parser_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert args.show_thinking is True
     assert args.permission_mode is PermissionMode.ASK
     assert args.shell_allow_list is None
+    assert args.audit is False
 
 
 def test_parser_no_thinking() -> None:
     assert build_parser().parse_args(["--no-thinking"]).show_thinking is False
+
+
+def test_parser_audit() -> None:
+    assert build_parser().parse_args(["--audit"]).audit is True
 
 
 def test_parser_permission_options() -> None:
@@ -480,6 +485,29 @@ def test_interactive_loop_eof(monkeypatch: pytest.MonkeyPatch) -> None:
     config = {"configurable": {"thread_id": "test"}}
 
     assert interactive_loop(agent, progress, output, config, False) == 0
+
+
+def test_main_starts_audit_before_building_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+    run = SimpleNamespace(run_id="run-1")
+
+    def fake_start_audit():
+        calls.append("audit")
+        return run
+
+    def fake_build_agent(**kwargs):
+        calls.append("build")
+        return object()
+
+    def fake_loop(agent, progress, output, config, debug, show_thinking=True):
+        return 0
+
+    monkeypatch.setattr("minicode.cli.start_audit", fake_start_audit)
+    monkeypatch.setattr("minicode.cli.build_agent", fake_build_agent)
+    monkeypatch.setattr("minicode.cli.interactive_loop", fake_loop)
+
+    assert main(["-i", "--audit"]) == 0
+    assert calls == ["audit", "build"]
 
 
 def test_main_rejects_prompt_with_interactive(monkeypatch: pytest.MonkeyPatch) -> None:
