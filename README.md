@@ -177,5 +177,5 @@ shell commands.
 
 ## Project tooling
 
-- OpenCode MCP servers: `docs-langchain`, `reference-langchain` (see `opencode.json`)
+- MCP servers: `docs-langchain`, `reference-langchain` (see `opencode.json` for OpenCode, `.github/mcp.json` for GitHub Copilot CLI and the Copilot app)
 - Project skill: `caveman` under `.agents/skills/` (see `AGENTS.md`)
