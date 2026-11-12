@@ -21,7 +21,7 @@
 
 ## 覆盖版本
 
-文档描述 `learn` 合并 `origin/dev` 之后的 HEAD `2915df5`，核对日期 2026-11-12。`learn` 分支基于 `dev`，开始写之前执行过 `git fetch origin && git switch learn && git merge origin/dev`；这个 HEAD 就是合并后的结果。
+文档描述 `learn` 合并 `origin/dev` 之后的代码基线 `2915df5`，核对日期 2026-11-12。`learn` 分支基于 `dev`，开始写之前执行过 `git fetch origin && git switch learn && git merge origin/dev`；这个提交就是合并后的代码状态。文档提交只新增 `learn/` 文件，不改变代码，所以行号仍以 `2915df5` 为准。
 
 当前 HEAD 包含权限模式、HITL、REPL/SQLite、评测和 reasoning 输出。PR #16 的审计日志/脱敏仍是未合入的补充，文档只在“计划中”的意义上提到它，不把它当现状。
 
