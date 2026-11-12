@@ -46,3 +46,10 @@ desktop.ini
 
 # Logs
 *.log
+
+# Agent state / SQLite checkpoints
+.minicode/
+*.sqlite*
+
+# Evaluation reports and fixture work dirs
+evals/results/

@@ -1,0 +1,5 @@
+id = "add-tests-stack"
+category = "add-tests"
+timeout_seconds = 180
+max_tool_calls = 30
+verify_script = "verify.py"

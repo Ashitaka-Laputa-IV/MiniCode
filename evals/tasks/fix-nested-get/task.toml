@@ -1,0 +1,5 @@
+id = "fix-nested-get"
+category = "bugfix"
+timeout_seconds = 180
+max_tool_calls = 30
+hidden_tests = "hidden"

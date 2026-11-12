@@ -5,14 +5,21 @@ import json
 import os
 import sys
 from typing import Any
-from uuid import uuid4
 
 from dotenv import dotenv_values, find_dotenv
+from langgraph.types import Command
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.markup import escape
 
-from .agent import DEFAULT_MODEL, build_agent, resolve_model, resolve_root
+from .agent import (
+    DEFAULT_MODEL,
+    build_agent,
+    close_checkpointer,
+    resolve_model,
+    resolve_root,
+)
+from .policy import PermissionMode
 
 ENV_ALLOWLIST = {
     "ANTHROPIC_API_KEY",
@@ -62,6 +69,35 @@ def message_text(message: Any) -> str:
     return str(content)
 
 
+def reasoning_text(message: Any) -> str:
+    """Return all reasoning text from a LangChain message, if present."""
+    parts: list[str] = []
+    for block in getattr(message, "content_blocks", None) or []:
+        if not isinstance(block, dict):
+            continue
+        kind = block.get("type")
+        text = ""
+        if kind == "reasoning":
+            text = block.get("reasoning", "")
+            if not text:
+                summary = block.get("summary", [])
+                if isinstance(summary, list):
+                    text = "\n".join(
+                        str(part.get("text", "")) for part in summary if isinstance(part, dict)
+                    )
+        elif kind == "non_standard":
+            value = block.get("value")
+            if isinstance(value, dict) and value.get("type") in {"thinking", "reasoning"}:
+                text = value.get("thinking") or value.get("reasoning") or ""
+        if text:
+            parts.append(str(text))
+    if parts:
+        return "\n".join(parts)
+    additional_kwargs = getattr(message, "additional_kwargs", None) or {}
+    reasoning_content = additional_kwargs.get("reasoning_content")
+    return reasoning_content if isinstance(reasoning_content, str) else ""
+
+
 def short_json(value: Any, limit: int = 160) -> str:
     try:
         text = json.dumps(value, ensure_ascii=False, default=str)
@@ -70,7 +106,7 @@ def short_json(value: Any, limit: int = 160) -> str:
     return text if len(text) <= limit else text[: limit - 3] + "..."
 
 
-def print_update(update: Any, console: Console) -> Any:
+def print_update(update: Any, console: Console, show_thinking: bool = True) -> Any:
     """Print tool activity from one stream update; return the last AI message."""
     if not isinstance(update, dict):
         return None
@@ -84,6 +120,12 @@ def print_update(update: Any, console: Console) -> Any:
             continue
 
         for message in messages:
+            if show_thinking and getattr(message, "type", None) == "ai":
+                reasoning = reasoning_text(message)
+                if reasoning:
+                    console.print("[dim]thinking[/]")
+                    console.print(reasoning, markup=False, style="dim", soft_wrap=True)
+
             tool_calls = getattr(message, "tool_calls", None) or []
             if tool_calls:
                 for call in tool_calls:
@@ -97,8 +139,7 @@ def print_update(update: Any, console: Console) -> Any:
                 name = getattr(message, "name", "tool")
                 text = message_text(message).strip().replace("\n", " ")
                 console.print(
-                    f"[green]<-[/] [bold]{escape(str(name))}[/] "
-                    f"[dim]{escape(text[:200])}[/]"
+                    f"[green]<-[/] [bold]{escape(str(name))}[/] [dim]{escape(text[:200])}[/]"
                 )
             elif getattr(message, "type", None) == "ai":
                 final = message
@@ -116,12 +157,7 @@ def print_final(message: Any, output: Console) -> None:
 
 def print_error(console: Console, exc: Exception) -> None:
     text = str(exc).lower()
-    if (
-        "api key" in text
-        or "api_key" in text
-        or "authentication" in text
-        or "unauthorized" in text
-    ):
+    if "api key" in text or "api_key" in text or "authentication" in text or "unauthorized" in text:
         console.print(
             "[red]minicode:[/] provider API key is missing or invalid. "
             "Set it for the selected model, or pass --model for another provider."
@@ -130,35 +166,103 @@ def print_error(console: Console, exc: Exception) -> None:
         console.print(f"[red]minicode:[/] {escape(str(exc))}")
 
 
+def ask_approval(interrupt: Any, progress: Console) -> list[dict[str, str]]:
+    """Ask the user to approve each action in one interrupt."""
+    value = getattr(interrupt, "value", {})
+    action_requests = value.get("action_requests", []) if isinstance(value, dict) else []
+    decisions: list[dict[str, str]] = []
+    interactive = sys.stdin.isatty()
+
+    for action in action_requests:
+        name = str(action.get("name", "tool"))
+        args = action.get("args", {})
+        description = action.get("description") or f"Tool: {name}\nArgs: {short_json(args)}"
+        progress.print(f"[yellow]approval required[/] [bold]{escape(name)}[/]")
+        progress.print(str(description), markup=False, style="dim", soft_wrap=True)
+        progress.print(short_json(args), markup=False, style="dim", soft_wrap=True)
+
+        if not interactive:
+            progress.print("[yellow]stdin is not a TTY; rejecting[/]")
+            decisions.append(
+                {
+                    "type": "reject",
+                    "message": (
+                        "Approval is required, but stdin is not a TTY. "
+                        "Re-run with --permission-mode yolo or an explicit shell allow-list."
+                    ),
+                }
+            )
+            continue
+
+        answer = progress.input("[bold]approve?[/] [dim]\\[y/N][/] ").strip().lower()
+        if answer in {"y", "yes"}:
+            decisions.append({"type": "approve"})
+        else:
+            decisions.append(
+                {
+                    "type": "reject",
+                    "message": "User rejected this action. Do not retry it.",
+                }
+            )
+
+    return decisions
+
+
+def resume_command(interrupts: list[Any], progress: Console) -> Command:
+    """Build the LangGraph resume command for one or more pending interrupts."""
+    if len(interrupts) == 1:
+        return Command(resume={"decisions": ask_approval(interrupts[0], progress)})
+
+    return Command(
+        resume={
+            interrupt.id: {"decisions": ask_approval(interrupt, progress)}
+            for interrupt in interrupts
+        }
+    )
+
+
 def run_turn(
     agent: Any,
     prompt: str,
     progress: Console,
     config: dict[str, Any],
+    show_thinking: bool = True,
 ) -> Any:
-    """Run one user turn and return the final AI message."""
+    """Run one user turn, handling human-in-the-loop interrupts."""
     final_message = None
-    for update in agent.stream(
-        {"messages": [{"role": "user", "content": prompt}]},
-        config=config,
-        stream_mode="updates",
-    ):
-        message = print_update(update, progress)
-        if message is not None:
-            final_message = message
+    stream_input: Any = {"messages": [{"role": "user", "content": prompt}]}
+
+    while True:
+        pending: list[Any] = []
+        for update in agent.stream(
+            stream_input,
+            config=config,
+            stream_mode="updates",
+        ):
+            if isinstance(update, dict) and "__interrupt__" in update:
+                pending.extend(update["__interrupt__"])
+                continue
+            message = print_update(update, progress, show_thinking=show_thinking)
+            if message is not None:
+                final_message = message
+
+        if not pending:
+            break
+        stream_input = resume_command(pending, progress)
+
     return final_message
 
 
-def make_config() -> dict[str, Any]:
-    return {"configurable": {"thread_id": f"minicode-{uuid4().hex}"}}
+def make_config(thread_id: str) -> dict[str, Any]:
+    return {"configurable": {"thread_id": thread_id}}
 
 
 def reset_thread(config: dict[str, Any], agent: Any) -> None:
-    old_thread = config["configurable"]["thread_id"]
-    config["configurable"]["thread_id"] = f"minicode-{uuid4().hex}"
+    """Clear the current conversation while keeping its thread id."""
+    thread_id = config["configurable"]["thread_id"]
     checkpointer = getattr(agent, "checkpointer", None)
     if checkpointer is not None:
-        checkpointer.delete_thread(old_thread)
+        checkpointer.delete_thread(thread_id)
 
 
 def interactive_loop(
@@ -167,11 +271,10 @@ def interactive_loop(
     output: Console,
     config: dict[str, Any],
     debug: bool,
+    show_thinking: bool = True,
 ) -> int:
     """Run a simple REPL until EOF or /exit."""
-    output.print(
-        "[bold]Interactive mode[/] [dim]Type /help for commands, /exit to quit.[/]"
-    )
+    output.print("[bold]Interactive mode[/] [dim]Type /help for commands, /exit to quit.[/]")
 
     while True:
         try:
@@ -194,7 +297,7 @@ def interactive_loop(
             continue
 
         try:
-            final_message = run_turn(agent, prompt, progress, config)
+            final_message = run_turn(agent, prompt, progress, config, show_thinking=show_thinking)
         except KeyboardInterrupt:
             reset_thread(config, agent)
             progress.print("[yellow]Interrupted. Context reset.[/]")
@@ -215,12 +318,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="minicode",
         description="Run a minimal Deep Agents coding agent in a workspace.",
+        epilog="Task evals: minicode eval --help",
     )
     parser.add_argument("prompt", nargs="*", help="task for the agent")
     parser.add_argument(
         "--model",
         default=None,
-        help=f"LangChain model, e.g. deepseek:deepseek-chat (default: $MINICODE_MODEL or {DEFAULT_MODEL})",
+        help=f"LangChain model, e.g. deepseek:deepseek-flash (default: $MINICODE_MODEL or {DEFAULT_MODEL})",
     )
     parser.add_argument(
         "--root",
@@ -233,15 +337,56 @@ def build_parser() -> argparse.ArgumentParser:
         help="enable Deep Agents debug logging",
     )
     parser.add_argument(
+        "--permission-mode",
+        choices=[mode.value for mode in PermissionMode],
+        type=PermissionMode.parse,
+        default=os.getenv("MINICODE_PERMISSION_MODE", PermissionMode.ASK.value),
+        help=(
+            "read-only denies writes/shell changes; ask (default) requires approval "
+            "for risky actions; yolo skips approval"
+        ),
+    )
+    parser.add_argument(
+        "--shell-allow-list",
+        default=os.getenv("MINICODE_SHELL_ALLOW_LIST"),
+        help=("comma-separated shell command prefixes to auto-approve, or 'recommended' / 'all'"),
+    )
+    parser.add_argument(
+        "--no-thinking",
+        dest="show_thinking",
+        action="store_false",
+        help="do not print model reasoning to stderr",
+    )
+    parser.add_argument(
         "-i",
         "--interactive",
         action="store_true",
         help="start an interactive REPL",
     )
+    parser.add_argument(
+        "--thread",
+        default=None,
+        help=(
+            "conversation id for the SQLite checkpointer "
+            "(default: default; use a unique value for parallel sessions)"
+        ),
+    )
+    parser.add_argument(
+        "--db",
+        default=None,
+        help=("SQLite checkpoint path, file only (default: <root>/.minicode/checkpoints.sqlite)"),
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    if argv and argv[0] == "eval":
+        from .evals.cli import main as eval_main
+
+        return eval_main(argv[1:])
+
     parser = build_parser()
     args = parser.parse_args(argv)
     env_path = load_env()
@@ -255,31 +400,52 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--interactive cannot be combined with a prompt")
     if not prompt and not args.interactive and not sys.stdin.isatty():
         prompt = sys.stdin.read().strip()
+    if prompt and (args.db or args.thread):
+        parser.error("--db and --thread require interactive mode")
     if not prompt and not args.interactive and not sys.stdin.isatty():
-        parser.error("provide a task, e.g. minicode \"fix the failing test\"")
+        parser.error('provide a task, e.g. minicode "fix the failing test"')
 
+    agent = None
     try:
+        thread_id = (args.thread or "default").strip() or "default"
         if args.debug:
             model_name = resolve_model(args.model)
             root_path = resolve_root(args.root)
             progress.print(f"[dim]workspace[/] {escape(str(root_path))}")
             progress.print(f"[dim]model[/] {escape(model_name)}")
+            progress.print(f"[dim]thread[/] {escape(thread_id)}")
 
         agent = build_agent(
             model=args.model,
             root=args.root,
             debug=args.debug,
             checkpoint=not bool(prompt),
+            db_path=args.db,
+            permission_mode=args.permission_mode,
+            shell_allow_list=args.shell_allow_list,
         )
-        config = make_config()
+        config = make_config(thread_id)
 
         if prompt:
-            final_message = run_turn(agent, prompt, progress, config)
+            final_message = run_turn(
+                agent,
+                prompt,
+                progress,
+                config,
+                show_thinking=args.show_thinking,
+            )
             if final_message is not None:
                 print_final(final_message, output)
             return 0
 
-        return interactive_loop(agent, progress, output, config, args.debug)
+        return interactive_loop(
+            agent,
+            progress,
+            output,
+            config,
+            args.debug,
+            show_thinking=args.show_thinking,
+        )
     except KeyboardInterrupt:
         progress.print("\n[yellow]Interrupted.[/]")
         return 130
@@ -288,3 +454,6 @@ def main(argv: list[str] | None = None) -> int:
             raise
         print_error(progress, exc)
         return 1
+    finally:
+        if agent is not None:
+            close_checkpointer(agent)

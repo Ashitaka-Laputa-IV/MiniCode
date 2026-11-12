@@ -1,17 +1,27 @@
 from __future__ import annotations
 
 import os
+import sqlite3
+from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from deepagents import create_deep_agent
-from deepagents.backends import LocalShellBackend
-from langgraph.checkpoint.memory import MemorySaver
+from langchain.agents.middleware import InterruptOnConfig
+from langchain_core.language_models import BaseChatModel
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.sqlite import SqliteSaver
+
+from .backends import PolicyShellBackend
+from .policy import PermissionMode, Policy
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
 
-DEFAULT_MODEL = "deepseek:deepseek-chat"
+DEFAULT_MODEL = "deepseek:deepseek-flash"
+DEFAULT_CHECKPOINT_DB = Path(".minicode") / "checkpoints.sqlite"
+
+ModelInput = str | BaseChatModel | None
 
 SHELL_ENV_ALLOWLIST = {
     "ALLUSERSPROFILE",
@@ -80,7 +90,7 @@ def shell_hint() -> str:
 
 
 def resolve_model(model: str | None = None) -> str:
-    return model or os.getenv("MINICODE_MODEL", DEFAULT_MODEL)
+    return (model or "").strip() or os.getenv("MINICODE_MODEL", "").strip() or DEFAULT_MODEL
 
 
 def resolve_root(root: str | Path | None = None) -> Path:
@@ -92,35 +102,100 @@ def resolve_root(root: str | Path | None = None) -> Path:
 
 def shell_env() -> dict[str, str]:
     """Return only the environment variables needed to run shell commands."""
-    return {
-        key: value
-        for key, value in os.environ.items()
-        if key.upper() in SHELL_ENV_ALLOWLIST
-    }
+    return {key: value for key, value in os.environ.items() if key.upper() in SHELL_ENV_ALLOWLIST}
+
+
+def resolve_db_path(root: Path, db_path: str | Path | None = None) -> Path:
+    if db_path is not None and str(db_path) == ":memory:":
+        raise ValueError("db_path does not support :memory:; use a file path")
+    path = Path(db_path).expanduser() if db_path else root / DEFAULT_CHECKPOINT_DB
+    if not path.is_absolute():
+        path = root / path
+    return path
+
+
+def build_checkpointer(root: Path, db_path: str | Path | None = None) -> SqliteSaver:
+    path = resolve_db_path(root, db_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path, check_same_thread=False)
+    return SqliteSaver(conn)
+
+
+def close_checkpointer(agent: "CompiledStateGraph") -> None:
+    checkpointer = getattr(agent, "checkpointer", None)
+    conn = getattr(checkpointer, "conn", None)
+    if conn is not None:
+        with suppress(Exception):
+            conn.close()
 
 
 def build_agent(
     *,
-    model: str | None = None,
+    model: ModelInput = None,
     root: str | Path | None = None,
     debug: bool = False,
     checkpoint: bool = False,
+    db_path: str | Path | None = None,
+    permission_mode: str | PermissionMode = PermissionMode.ASK,
+    shell_allow_list: str | list[str] | None = None,
 ) -> "CompiledStateGraph":
-    """Build the minimal Deep Agents coding harness for one workspace."""
-    root_path = resolve_root(root)
-    model_name = resolve_model(model)
+    """Build the minimal Deep Agents coding harness for one workspace.
 
-    backend = LocalShellBackend(
+    When ``checkpoint`` is enabled, the caller owns the SQLite connection;
+    close it with :func:`close_checkpointer` when the agent is no longer used.
+    """
+    root_path = resolve_root(root)
+    model_name = model if isinstance(model, BaseChatModel) else resolve_model(model)
+    mode = PermissionMode.parse(permission_mode)
+    policy = Policy(mode, allow_commands=shell_allow_list)
+
+    backend = PolicyShellBackend(
         root_dir=root_path,
         env=shell_env(),
         inherit_env=False,
+        policy=policy,
     )
 
-    return create_deep_agent(
-        model=model_name,
-        system_prompt=SYSTEM_PROMPT.format(shell=shell_hint()),
-        backend=backend,
-        debug=debug,
-        name="minicode",
-        checkpointer=MemorySaver() if checkpoint else None,
-    )
+    interrupt_on: dict[str, bool | InterruptOnConfig] | None = None
+    if mode == PermissionMode.ASK:
+
+        def needs_shell_approval(request: Any) -> bool:
+            command = request.tool_call.get("args", {}).get("command", "")
+            return isinstance(command, str) and policy.needs_approval(command)
+
+        file_gate = InterruptOnConfig(
+            allowed_decisions=["approve", "reject"],
+            description="File change requires approval",
+        )
+        interrupt_on = {
+            "write_file": file_gate,
+            "edit_file": file_gate,
+            "delete": file_gate,
+            "execute": InterruptOnConfig(
+                allowed_decisions=["approve", "reject"],
+                description="Shell command requires approval",
+                when=needs_shell_approval,
+            ),
+        }
+
+    checkpointer: SqliteSaver | InMemorySaver | None = None
+    if checkpoint:
+        checkpointer = build_checkpointer(root_path, db_path)
+    elif mode == PermissionMode.ASK:
+        checkpointer = InMemorySaver()
+    try:
+        return create_deep_agent(
+            model=model_name,
+            system_prompt=SYSTEM_PROMPT.format(shell=shell_hint()),
+            backend=backend,
+            interrupt_on=interrupt_on,
+            debug=debug,
+            name="minicode",
+            checkpointer=checkpointer,
+        )
+    except Exception:
+        conn = getattr(checkpointer, "conn", None)
+        if conn is not None:
+            with suppress(Exception):
+                conn.close()
+        raise

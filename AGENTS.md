@@ -3,8 +3,8 @@
 ## 仓库现状
 
 - Python 项目，使用 uv 管理（`pyproject.toml`、`uv.lock`、`.python-version` 固定 3.13）。
-- 基于 Deep Agents harness：`src/minicode/agent.py` 用 `create_deep_agent` + `LocalShellBackend`；`src/minicode/cli.py` 是入口。有 pytest 测试，无 lint 或 CI。
-- Agent 拥有当前工作区的文件读写和 shell 执行权限，没有 HITL 审批；shell 环境变量经过过滤，不继承 provider key。默认模型 `deepseek:deepseek-chat`，用 `--model` 或 `MINICODE_MODEL` 覆盖。
+- 基于 Deep Agents harness：`src/minicode/agent.py` 用 `create_deep_agent` + `PolicyShellBackend`（包装 `LocalShellBackend`）；`src/minicode/cli.py` 是入口。测试用 pytest，静态检查用 ruff + mypy，CI 在 GitHub Actions。
+- Agent 拥有当前工作区的文件读写和 shell 执行权限；默认 `ask` 模式通过 HITL 审批，另有 `read-only` / `yolo`。shell 环境变量经过过滤，不继承 provider key。默认模型 `deepseek:deepseek-flash`，用 `--model` 或 `MINICODE_MODEL` 覆盖。
 - 一律使用 uv，不要用 `pip` 或全局 Python；虚拟环境 `.venv/` 由 uv 管理，已加入 `.gitignore`。
 - `dev` 已推送到 `origin`；PR 基分支为 `dev`，功能分支从 `origin/dev` 切出。
 
@@ -14,13 +14,32 @@
 - 交互式 REPL：`uv run minicode`（TTY 下无 prompt 自动进入）或 `uv run minicode -i`；`/help`、`/reset`、`/exit`、`/quit`
 - 单次运行：`uv run minicode "<task>"`
 - 其他入口：`uv run python -m minicode "<task>"`
-- REPL 会话状态在内存中，进程退出即丢失；失败/中断的回合会重置 thread，避免恢复未完成节点
-- 模型：`--model <provider:model>` 或环境变量 `MINICODE_MODEL`；默认 `deepseek:deepseek-chat`，需要 `DEEPSEEK_API_KEY`
+- REPL 会话持久化到 SQLite（默认 `<root>/.minicode/checkpoints.sqlite`）；`--db` 指定数据库文件，`--thread` 选择会话；失败/中断/`/reset` 会清空当前 thread
+- 默认 thread `default`；同一 workspace 并行 REPL 要显式用不同 `--thread`/`--db`，避免 `database is locked` 或 checkpoint 交错
+- `.minicode/` 和 `*.sqlite*` 已忽略；数据库包含对话和工具输出，不要提交
+- 模型：`--model <provider:model>` 或环境变量 `MINICODE_MODEL`；默认 `deepseek:deepseek-flash`，需要 `DEEPSEEK_API_KEY`
+- 权限模式：`--permission-mode read-only|ask|yolo` 或 `MINICODE_PERMISSION_MODE`；默认 `ask`，非 TTY 下 gated action 会被拒绝
+- shell allow-list：`--shell-allow-list "git status,uv run pytest"` 或 `MINICODE_SHELL_ALLOW_LIST`；也支持 `recommended` / `all`
+- 权限策略是 guardrail，不是 sandbox；不可信任务仍需容器/VM。eval worker 在非交互环境显式使用 `yolo`
 - 环境变量：CLI 自动加载当前目录或祖先目录的 `.env`，但只应用 `MINICODE_MODEL` 和已知 provider key，忽略 base URL/endpoint 类变量；shell 已有变量优先。`.env` 已被忽略，提交 `.env.example`，不要把真实 key 写入版本库
 - 添加依赖：`uv add <pkg>`；开发依赖：`uv add --dev <pkg>`
 - 更新锁文件：`uv lock`（升级用 `uv lock --upgrade`）
 - 运行单个测试：`uv run pytest tests/test_cli.py::test_parser_defaults`；全量：`uv run pytest -q`
+- 覆盖率测试：`uv run pytest -q --cov=minicode --cov-report=term-missing`；下限 70%，配置在 `pyproject.toml`；新增代码需自带测试，不要靠降低下限过 CI
+- live 测试：`uv run pytest -m live -q`；默认 `pytest` 不跑，仅支持 DeepSeek，需要 `DEEPSEEK_API_KEY`，缺 key 会失败，有 API 成本
+- 代码检查：`uv run ruff check .`；格式检查：`uv run ruff format --check .`；格式化：`uv run ruff format .`
+- 类型检查：`uv run mypy src`
+- 任务评测：`uv run minicode eval --baseline full --json evals/results/smoke-full.json`；`--baseline all` 同时跑 `bare`；20 个 fixture 任务在 `evals/tasks/`
+- 评测结果目录 `evals/results/` 已忽略；修改任务/runner 后先跑 `--task <id>` 再跑 smoke
+- smoke 有 API 成本和耗时，PR CI 不跑；只在需要回归数据或改动 eval runner 时手动跑
 - 临时脚本：`uv run python -c "..."`
+
+## CI
+
+- `.github/workflows/ci.yml`：push / PR 到 `dev`、`main` 时运行 `uv sync --locked`、ruff、format check、mypy、pytest + coverage（下限 70%）。默认排除 live 测试，不调用模型。
+- `.github/workflows/live-eval.yml`：仅手动 `workflow_dispatch`，需要仓库 secret `DEEPSEEK_API_KEY`，运行 smoke 并上传 JSON 报告。不要在 PR 流程里触发。
+- `.github/workflows/live-tests.yml`：仅手动 `workflow_dispatch`，运行 `pytest -m live`，需要仓库 secret `DEEPSEEK_API_KEY`，不在 PR 触发。
+- 改动 workflow 后本地至少跑一遍对应命令；不要为了验证 CI 而重跑 smoke。
 
 ## 项目技能
 
@@ -77,6 +96,15 @@ set "BOT_SCRIPT=C:\Users\Ashit\.config\ashitaka-bot\bot.py"
 - `$BOT pr create` 默认 `--base dev`，`--head` 默认当前分支；会拒绝从 `dev`/`main`/`master` 发起，也拒绝 `head == base`。
 - 不要在 `dev`、`main` 上直接提交。另起 `feat/...`、`fix/...` 等分支，PR 基分支为 `dev`。
 
+## 审阅与合并身份：必须使用号主
+
+提交、推送和创建 PR 使用 `Ashitaka-Bot`；但审阅和合并属于号主操作：
+
+- PR review、review 回复、审阅总结必须使用号主账号 `Ashitaka-Laputa-IV` 发布，不要用 `Ashitaka-Bot` 或 `$BOT pr comment` 代替。
+- Agent 不得自行合并 PR，也不得使用 bot 身份合并；需要合并时由号主账号执行。
+- Agent 可以准备审阅文案、回复内容或合并说明，但最终发布和合并由号主完成。
+- 如果本地使用 `gh`，先确认登录的是号主账号；不要用 bot token 执行 review 或 merge。
+
 ## 标准提交流程
 
 1. 确认/获取 `dev`，从它切分支：`git switch -c feat/<name> origin/dev`
@@ -95,4 +123,4 @@ $BOT setup                  # 每个仓库首次 push 前执行一次
 $BOT api GET /repos/{repo}/pulls/29
 ```
 
-`$BOT api` 的路径支持 `{repo}` 占位符；`pr comment <number> --body-file <file>` 可用于回复 PR。
+`$BOT api` 的路径支持 `{repo}` 占位符。`$BOT pr comment` 不要在审阅回复或合并流程中使用；这些操作由号主身份完成。
