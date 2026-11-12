@@ -49,12 +49,12 @@
 
 ## MCP
 
-项目级 MCP 配置在 `opencode.json`，两个 LangChain 公共 HTTP 端点均无需鉴权：
+项目级 MCP 配置在 `opencode.json`（OpenCode）和 `.github/mcp.json`（GitHub Copilot CLI / app），两处内容需保持一致。两个 LangChain 公共 HTTP 端点均无需鉴权：
 
 - `docs-langchain`（`https://docs.langchain.com/mcp`）：概念指南、教程和产品文档。
 - `reference-langchain`（`https://reference.langchain.com/mcp`）：API 参考、类/函数签名。
 
-涉及 LangChain、LangGraph、LangSmith 的问题优先查这两个 MCP。查看状态用 `opencode mcp list`；重新添加用 `opencode mcp add <name> --url <url>`。
+涉及 LangChain、LangGraph、LangSmith 的问题优先查这两个 MCP。OpenCode 查看状态用 `opencode mcp list`，重新添加用 `opencode mcp add <name> --url <url>`；Copilot 用 `copilot mcp list`，首次加载 `.github/mcp.json` 需先确认该目录的 folder trust。Copilot 侧格式为 `mcpServers` 对象，远端服务写 `"type": "http"` 加 `url`（与 OpenCode 的 `type: "remote"` 不同）。
 
 ## 提交身份：必须使用 Ashitaka-Bot
 
