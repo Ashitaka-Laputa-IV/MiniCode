@@ -72,7 +72,7 @@ PR #16 就是补这条观察链。它没有改 `Policy` 的判定顺序，也没
 }
 ```
 
-文件工具不记内容。`write_file` 的 `policy` 事件只有 `file_path` 和 `content_bytes`，`result` 事件只有 `path` 和 `bytes`；`edit_file` 只记 `old_bytes` / `new_bytes`。这是有意的：审计要能追到文件和大小，但不要把源码或 secret 再复制一份。
+文件工具不记内容。`write_file` 的 `policy` 事件只有 `file_path` 和 `content_bytes`，`result` 的文件相关字段只有 `path` 和 `bytes`（`ok`、`duration_ms`、`error` 仍保留）；`edit_file` 只记 `old_bytes` / `new_bytes`。这是有意的：审计要能追到文件和大小，但不要把源码或 secret 再复制一份。
 
 ## 一次 ask 审批实际怎么写
 
