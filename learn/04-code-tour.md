@@ -48,7 +48,7 @@
 
 ## 6. `ask_approval()` 和 `resume_command()`：人的决定怎么变成图输入
 
-停在 [`ask_approval()`](../src/minicode/cli.py#L169)，因为这里决定用户看到什么、decision 长什么样。它逐个 action 打印名称、description 和 `short_json(args)`；非 TTY 时 append reject；交互时读 `y/N`。
+停在 [`ask_approval()`](../src/minicode/cli.py#L180)，因为这里决定用户看到什么、decision 长什么样。它逐个 action 打印名称、description 和脱敏后的 [`display_args()`](../src/minicode/redaction.py#L120)；非 TTY 时 append reject；交互时读 `y/N`。如果传入了 audit，它还会写 `approval` 事件：TTY 下记 approver 和 approve/reject，非 TTY 下记 `approver=null`。
 
 再停 [`resume_command()`](../src/minicode/cli.py#L211)：单个 interrupt 返回 `{"decisions": [...]}`，多个 interrupt 返回 `{interrupt_id: {"decisions": [...]}}`。这个形状必须和 LangGraph/LangChain 的 response schema 对齐，不能只看 CLI 测试。
 
@@ -72,15 +72,19 @@
 
 ## 9. `PolicyShellBackend`：host shell 的执行口
 
-停在 [`PolicyShellBackend.execute()`](../src/minicode/backends.py#L18)，因为它是 host shell 的最后一道包装。`evaluate_command()` 返回 `DENY` 时直接构造 `ExecuteResponse`，`exit_code=126`；否则调用 [`super().execute()`](../src/minicode/backends.py#L26)。
+停在 [`PolicyShellBackend.execute()`](../src/minicode/backends.py#L64)，因为它是 host shell 的最后一道包装。`evaluate_command()` 返回 `DENY` 时直接构造 `ExecuteResponse`，`exit_code=126`；否则调用 [`super().execute()`](../src/minicode/backends.py#L87)。
 
-文件工具也在这里分叉：[`write()`](../src/minicode/backends.py#L28)、[`edit()`](../src/minicode/backends.py#L35)、[`delete()`](../src/minicode/backends.py#L48) 先看 `allows_file_write()`，`read-only` 返回 permission error，`ask`/`yolo` 继续。
+文件工具也在这里分叉：[`write()`](../src/minicode/backends.py#L97)、[`edit()`](../src/minicode/backends.py#L127)、[`delete()`](../src/minicode/backends.py#L168) 先看 `allows_file_write()`，`read-only` 返回 permission error，`ask`/`yolo` 继续。
 
-新增一个能执行命令的工具时，要么让它经过这个 backend，要么明确它为什么不需要 policy；否则 hard deny 和 `read-only` 都只是装饰。`tests/test_backends.py` 覆盖了 deny、safe、allow-list 和 read-only 文件拒绝。
+PR #16 在这四个方法里加了审计：执行前写 `policy`，执行后写 `result`。`execute` 的 deny 分支会记 reason 和 `exit_code=126`，文件工具只记 path、byte count 和 error，不记内容。审计写入失败不会阻断执行，所以它不在权限路径上；细节见 [06-audit-and-redaction.md](06-audit-and-redaction.md)。
+
+新增一个能执行命令的工具时，要么让它经过这个 backend，要么明确它为什么不需要 policy；否则 hard deny 和 `read-only` 都只是装饰，审计也不会自动覆盖它。`tests/test_backends.py` 覆盖了 deny、safe、allow-list 和 read-only 文件拒绝。
 
 ## 10. `print_update()` 和 `print_final()`：输出契约
 
-停在 [`print_update()`](../src/minicode/cli.py#L109)，因为工具进度、thinking 和最终回答的分流都在这里。它遍历 update 里的节点，只处理带 `messages` 的字典；AI 消息先打印 thinking，再打印 tool call；tool 消息打印结果；无 tool call 的 AI 消息被记为 `final`。
+停在 [`print_update()`](../src/minicode/cli.py#L113)，因为工具进度、thinking 和最终回答的分流都在这里。它遍历 update 里的节点，只处理带 `messages` 的字典；AI 消息先打印 thinking，再打印 tool call；tool 消息打印结果；无 tool call 的 AI 消息被记为 `final`。
+
+PR #16 把 tool call 的参数改成 [`summarize_args()`](../src/minicode/redaction.py#L88)，所以 `Authorization` / token 不会先出现在终端 scrollback；tool 结果 `<-` 仍然是截断后的原文，这是当前边界。
 
 再停 [`print_final()`](../src/minicode/cli.py#L149)：只有 `output.is_terminal` 才用 `Markdown`，否则按原文打印。这个分支保证管道输出是模型原文。
 
@@ -104,16 +108,17 @@
 
 ## 用命令验证你读对了
 
-这些命令在当前 HEAD `2915df5` 上跑过：
+这些命令在当前 HEAD `d96e6eb` 上跑过：
 
 ```bash
 uv run pytest -q tests/test_hitl.py
 uv run pytest -q tests/test_policy.py tests/test_backends.py
 uv run pytest -q tests/test_evals.py tests/test_evals_cli.py tests/test_evals_worker.py
+uv run pytest -q tests/test_audit.py tests/test_redaction.py
 uv run pytest -q
 ```
 
-前三条分别覆盖 interrupt/resume、policy/backend、评测隔离；全量那条是 179 passed，2 deselected。`uv run minicode --help` 和 `uv run minicode eval --help` 也跑过，用来确认两个入口的参数没有混在一起。
+前三条分别覆盖 interrupt/resume、policy/backend、评测隔离，第四条覆盖审计和脱敏；全量那条是 229 passed，1 skipped，2 deselected。`uv run minicode --help` 和 `uv run minicode eval --help` 也跑过，用来确认两个入口的参数没有混在一起。
 
 `tests/test_hitl.py` 不需要 API key：它用 `ToolCallingModel` 驱动真实图，所以适合在没有 provider key 的机器上验证审批路径。
 

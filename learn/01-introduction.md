@@ -64,7 +64,7 @@
 
 **不做 provider 抽象层。** 模型通过 LangChain 的 `init_chat_model`/`create_deep_agent` 接入，默认 DeepSeek；换 provider 要加对应的 LangChain 集成包。MiniCode 不维护统一的能力矩阵，也不保证每个 provider 的 reasoning/tool call 形态一致。
 
-**审计日志仍在计划中。** 当前 HEAD 没有 `audit.py`/`redaction.py`；PR #16 是未合入的补充。读文档时不要把“计划中的审计”当成现状。
+**审计日志是观察层，不是执行层。** PR #16 已合入：每次 gated action 会在 `<workspace>/.minicode/audit.jsonl` 留下 `policy` / `approval` / `result`，并做 best-effort secret 脱敏。它记录“拦了什么、谁批的、结果如何”，但不改变 `Policy` 的放行/拒绝，也不是 tamper-proof；细节见 [06-audit-and-redaction.md](06-audit-and-redaction.md)。
 
 ## 最危险的一条边界
 
