@@ -1,0 +1,35 @@
+# NeMo Relay -> LangSmith OTLP traces.
+#
+# Set the API key before running MiniCode:
+#   $env:LANGSMITH_API_KEY = "lsv2_pt_..."
+# Then:
+#   uv run minicode --relay-plugins plugins.langsmith.example.toml "..."
+#
+# Change Langsmith-Project to an existing LangSmith project. For an
+# agent-based workspace, replace that header with Langsmith-Agent-Id and
+# Langsmith-Agent-Environment.
+
+version = 1
+
+[[components]]
+kind = "observability"
+enabled = true
+
+[components.config]
+version = 4
+enable_full_payloads = false
+
+[components.config.opentelemetry]
+enabled = true
+
+[[components.config.opentelemetry.endpoints]]
+type = "gen_ai"
+endpoint = "https://api.smith.langchain.com/otel/v1/traces"
+transport = "http_binary"
+service_name = "minicode"
+
+[components.config.opentelemetry.endpoints.headers]
+Langsmith-Project = "minicode"
+
+[components.config.opentelemetry.endpoints.header_env]
+x-api-key = "LANGSMITH_API_KEY"

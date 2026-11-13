@@ -102,7 +102,10 @@ class RelaySession:
         import nemo_relay
 
         plugins = str(self.plugins) if self.plugins is not None else None
-        async with nemo_relay.plugin.activate(self.config(), plugins):
+        # A user-supplied file owns the component list; the inline config would
+        # otherwise override its observability settings.
+        config = {} if self.plugins is not None else self.config()
+        async with nemo_relay.plugin.activate(config, plugins):
             self._ready.set()
             await asyncio.to_thread(self._stop.wait)
 

@@ -174,8 +174,29 @@ uv run minicode --relay "fix the tests"
 The default configuration writes Agent Trajectory Observability Format
 (ATOF) events to `<root>/.minicode/relay/events.jsonl`. The file can contain
 prompts and tool output, so it stays under the ignored `.minicode/` directory.
-Use `--relay-plugins PATH` to point at a NeMo Relay `plugins.toml` with your
-own ATOF, ATIF, or OpenTelemetry exporters.
+Use `--relay-plugins PATH` to replace the default configuration with a NeMo
+Relay `plugins.toml` containing your own ATOF, ATIF, or OpenTelemetry
+exporters.
+
+### LangSmith
+
+Set an OTLP traces endpoint and headers; Relay's automatic exporter sends
+`gen_ai` spans to LangSmith while the local ATOF file keeps being written:
+
+```powershell
+$env:LANGSMITH_API_KEY = "lsv2_pt_..."
+$env:OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = "https://api.smith.langchain.com/otel/v1/traces"
+$env:OTEL_EXPORTER_OTLP_HEADERS = "x-api-key=$env:LANGSMITH_API_KEY,Langsmith-Project=minicode"
+uv run minicode --relay "fix the tests"
+```
+
+Alternatively use [`plugins.langsmith.example.toml`](plugins.langsmith.example.toml)
+with `--relay-plugins`; it reads the key from `LANGSMITH_API_KEY` instead of
+storing it in the file. Use `eu.api.smith.langchain.com` or
+`apac.api.smith.langchain.com` for those regions, or
+`https://<host>/api/v1/otel/v1/traces` for self-hosted LangSmith. For an
+agent-based workspace, replace `Langsmith-Project` with
+`Langsmith-Agent-Id` and `Langsmith-Agent-Environment`.
 
 NeMo Relay is beta and only observes calls; it does not change permissions or
 approvals. A failed plugin host aborts the run instead of silently dropping

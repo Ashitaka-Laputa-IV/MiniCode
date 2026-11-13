@@ -103,6 +103,46 @@ def test_start_reports_activation_failure(tmp_path: Path, monkeypatch: pytest.Mo
         RelaySession(root=tmp_path).start()
 
 
+def test_default_start_passes_inline_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict = {}
+
+    def activate(config, plugins):
+        seen["config"] = config
+        seen["plugins"] = plugins
+        return FakeActivation([])
+
+    install_fake_nemo_relay(monkeypatch, [], activation=activate)
+    session = RelaySession(root=tmp_path)
+
+    session.start()
+    session.close()
+
+    assert seen["plugins"] is None
+    assert seen["config"]["components"][0]["kind"] == "observability"
+
+
+def test_custom_plugins_replace_inline_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict = {}
+
+    def activate(config, plugins):
+        seen["config"] = config
+        seen["plugins"] = plugins
+        return FakeActivation([])
+
+    install_fake_nemo_relay(monkeypatch, [], activation=activate)
+    session = RelaySession(root=tmp_path, plugins="custom.toml")
+
+    session.start()
+    session.close()
+
+    assert seen["plugins"] == "custom.toml"
+    assert seen["config"] == {}
+
+
 def test_attach_preserves_existing_callbacks(monkeypatch: pytest.MonkeyPatch) -> None:
     install_fake_nemo_relay(monkeypatch, [])
     session = RelaySession(root=".")
