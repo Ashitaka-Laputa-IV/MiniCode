@@ -163,6 +163,24 @@ from the shell environment; the `.env` loader intentionally applies only the
 model and provider keys. `--shell-allow-list` also accepts `recommended` or
 `all`.
 
+## Observability (experimental)
+
+`--relay` records the session with NVIDIA NeMo Relay:
+
+```bash
+uv run minicode --relay "fix the tests"
+```
+
+The default configuration writes Agent Trajectory Observability Format
+(ATOF) events to `<root>/.minicode/relay/events.jsonl`. The file can contain
+prompts and tool output, so it stays under the ignored `.minicode/` directory.
+Use `--relay-plugins PATH` to point at a NeMo Relay `plugins.toml` with your
+own ATOF, ATIF, or OpenTelemetry exporters.
+
+NeMo Relay is beta and only observes calls; it does not change permissions or
+approvals. A failed plugin host aborts the run instead of silently dropping
+the audit stream.
+
 ## Safety
 
 The agent uses `PolicyShellBackend`, which wraps `LocalShellBackend`: it can

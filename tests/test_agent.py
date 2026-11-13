@@ -1,6 +1,7 @@
 import os
+import sys
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
@@ -74,12 +75,46 @@ def test_build_agent_checkpointer_is_optional(
 
     build_agent(root=tmp_path, permission_mode="yolo")
     assert captured["checkpointer"] is None
+    assert "middleware" not in captured
 
     build_agent(root=tmp_path, checkpoint=True)
     checkpointer = captured["checkpointer"]
     assert isinstance(checkpointer, SqliteSaver)
     assert (tmp_path / DEFAULT_CHECKPOINT_DB).exists()
     checkpointer.conn.close()
+
+
+def test_build_agent_relay_wraps_create_kwargs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict = {}
+    positions: list[str] = []
+
+    nemo = ModuleType("nemo_relay")
+    integrations = ModuleType("nemo_relay.integrations")
+    deepagents = ModuleType("nemo_relay.integrations.deepagents")
+
+    def add_nemo_relay_integration(kwargs, *, position):
+        positions.append(position)
+        return {**kwargs, "middleware": ["relay"]}
+
+    deepagents.add_nemo_relay_integration = add_nemo_relay_integration  # type: ignore[attr-defined]
+    integrations.deepagents = deepagents  # type: ignore[attr-defined]
+    nemo.integrations = integrations  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "nemo_relay", nemo)
+    monkeypatch.setitem(sys.modules, "nemo_relay.integrations", integrations)
+    monkeypatch.setitem(sys.modules, "nemo_relay.integrations.deepagents", deepagents)
+
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("minicode.agent.create_deep_agent", fake_create)
+
+    build_agent(root=tmp_path, relay=True, permission_mode="yolo")
+
+    assert captured["middleware"] == ["relay"]
+    assert positions == ["inner"]
 
 
 def test_build_agent_read_only_has_no_hitl(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

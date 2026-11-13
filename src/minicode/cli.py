@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import sys
+from contextlib import nullcontext
 from typing import Any
 
 from dotenv import dotenv_values, find_dotenv
@@ -20,6 +21,7 @@ from .agent import (
     resolve_root,
 )
 from .policy import PermissionMode
+from .relay import RelaySession
 
 ENV_ALLOWLIST = {
     "ANTHROPIC_API_KEY",
@@ -227,28 +229,32 @@ def run_turn(
     progress: Console,
     config: dict[str, Any],
     show_thinking: bool = True,
+    *,
+    relay: RelaySession | None = None,
 ) -> Any:
     """Run one user turn, handling human-in-the-loop interrupts."""
     final_message = None
     stream_input: Any = {"messages": [{"role": "user", "content": prompt}]}
+    scope = relay.turn() if relay is not None else nullcontext()
 
-    while True:
-        pending: list[Any] = []
-        for update in agent.stream(
-            stream_input,
-            config=config,
-            stream_mode="updates",
-        ):
-            if isinstance(update, dict) and "__interrupt__" in update:
-                pending.extend(update["__interrupt__"])
-                continue
-            message = print_update(update, progress, show_thinking=show_thinking)
-            if message is not None:
-                final_message = message
+    with scope:
+        while True:
+            pending: list[Any] = []
+            for update in agent.stream(
+                stream_input,
+                config=config,
+                stream_mode="updates",
+            ):
+                if isinstance(update, dict) and "__interrupt__" in update:
+                    pending.extend(update["__interrupt__"])
+                    continue
+                message = print_update(update, progress, show_thinking=show_thinking)
+                if message is not None:
+                    final_message = message
 
-        if not pending:
-            break
-        stream_input = resume_command(pending, progress)
+            if not pending:
+                break
+            stream_input = resume_command(pending, progress)
 
     return final_message
 
@@ -272,6 +278,7 @@ def interactive_loop(
     config: dict[str, Any],
     debug: bool,
     show_thinking: bool = True,
+    relay: RelaySession | None = None,
 ) -> int:
     """Run a simple REPL until EOF or /exit."""
     output.print("[bold]Interactive mode[/] [dim]Type /help for commands, /exit to quit.[/]")
@@ -297,7 +304,14 @@ def interactive_loop(
             continue
 
         try:
-            final_message = run_turn(agent, prompt, progress, config, show_thinking=show_thinking)
+            final_message = run_turn(
+                agent,
+                prompt,
+                progress,
+                config,
+                show_thinking=show_thinking,
+                relay=relay,
+            )
         except KeyboardInterrupt:
             reset_thread(config, agent)
             progress.print("[yellow]Interrupted. Context reset.[/]")
@@ -335,6 +349,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--debug",
         action="store_true",
         help="enable Deep Agents debug logging",
+    )
+    parser.add_argument(
+        "--relay",
+        action="store_true",
+        help="record NeMo Relay events for this session",
+    )
+    parser.add_argument(
+        "--relay-plugins",
+        default=None,
+        help="NeMo Relay plugins.toml path (implies --relay)",
     )
     parser.add_argument(
         "--permission-mode",
@@ -406,6 +430,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error('provide a task, e.g. minicode "fix the failing test"')
 
     agent = None
+    relay: RelaySession | None = None
+    relay_enabled = args.relay or bool(args.relay_plugins)
     try:
         thread_id = (args.thread or "default").strip() or "default"
         if args.debug:
@@ -415,6 +441,9 @@ def main(argv: list[str] | None = None) -> int:
             progress.print(f"[dim]model[/] {escape(model_name)}")
             progress.print(f"[dim]thread[/] {escape(thread_id)}")
 
+        if relay_enabled:
+            relay = RelaySession(root=args.root, plugins=args.relay_plugins).start()
+
         agent = build_agent(
             model=args.model,
             root=args.root,
@@ -423,8 +452,11 @@ def main(argv: list[str] | None = None) -> int:
             db_path=args.db,
             permission_mode=args.permission_mode,
             shell_allow_list=args.shell_allow_list,
+            relay=relay_enabled,
         )
         config = make_config(thread_id)
+        if relay is not None:
+            config = relay.attach(config)
 
         if prompt:
             final_message = run_turn(
@@ -433,6 +465,7 @@ def main(argv: list[str] | None = None) -> int:
                 progress,
                 config,
                 show_thinking=args.show_thinking,
+                relay=relay,
             )
             if final_message is not None:
                 print_final(final_message, output)
@@ -445,6 +478,7 @@ def main(argv: list[str] | None = None) -> int:
             config,
             args.debug,
             show_thinking=args.show_thinking,
+            relay=relay,
         )
     except KeyboardInterrupt:
         progress.print("\n[yellow]Interrupted.[/]")
@@ -457,3 +491,8 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         if agent is not None:
             close_checkpointer(agent)
+        if relay is not None:
+            try:
+                relay.close()
+            except Exception as exc:
+                print_error(progress, exc)

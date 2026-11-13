@@ -1,5 +1,6 @@
 import io
 import os
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -217,10 +218,18 @@ def test_parser_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert args.show_thinking is True
     assert args.permission_mode is PermissionMode.ASK
     assert args.shell_allow_list is None
+    assert args.relay is False
+    assert args.relay_plugins is None
 
 
 def test_parser_no_thinking() -> None:
     assert build_parser().parse_args(["--no-thinking"]).show_thinking is False
+
+
+def test_parser_relay() -> None:
+    assert build_parser().parse_args(["--relay"]).relay is True
+    args = build_parser().parse_args(["--relay-plugins", "plugins.toml"])
+    assert args.relay_plugins == "plugins.toml"
 
 
 def test_parser_permission_options() -> None:
@@ -386,6 +395,24 @@ def test_run_turn_approves_interrupt(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "echo hi" in progress.file.getvalue()
 
 
+def test_run_turn_wraps_relay_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+    entered: list[str] = []
+
+    class FakeRelay:
+        def turn(self):
+            entered.append("turn")
+            return nullcontext()
+
+    agent = FakeAgent()
+    progress = Console(file=io.StringIO(), force_terminal=False, soft_wrap=True)
+    config = {"configurable": {"thread_id": "test"}}
+
+    message = run_turn(agent, "do it", progress, config, relay=FakeRelay())
+
+    assert message.content == "done"
+    assert entered == ["turn"]
+
+
 def test_run_turn_rejects_interrupt_without_tty(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("sys.stdin.isatty", lambda: False)
 
@@ -482,6 +509,49 @@ def test_interactive_loop_eof(monkeypatch: pytest.MonkeyPatch) -> None:
     assert interactive_loop(agent, progress, output, config, False) == 0
 
 
+def test_main_starts_relay_before_building_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+    captured: dict = {}
+
+    class FakeRelay:
+        def __init__(self, root, plugins=None):
+            calls.append("init")
+            captured["plugins"] = plugins
+
+        def start(self):
+            calls.append("start")
+            return self
+
+        def attach(self, config):
+            calls.append("attach")
+            return {**config, "callbacks": ["relay"]}
+
+        def close(self):
+            calls.append("close")
+
+    def fake_build_agent(**kwargs):
+        calls.append("build")
+        captured["relay"] = kwargs["relay"]
+        return object()
+
+    def fake_loop(agent, progress, output, config, debug, show_thinking=True, relay=None):
+        calls.append("loop")
+        captured["config"] = config
+        captured["session"] = relay
+        return 0
+
+    monkeypatch.setattr("minicode.cli.RelaySession", FakeRelay)
+    monkeypatch.setattr("minicode.cli.build_agent", fake_build_agent)
+    monkeypatch.setattr("minicode.cli.interactive_loop", fake_loop)
+
+    assert main(["-i", "--relay-plugins", "plugins.toml"]) == 0
+    assert calls == ["init", "start", "build", "attach", "loop", "close"]
+    assert captured["relay"] is True
+    assert captured["plugins"] == "plugins.toml"
+    assert captured["config"]["callbacks"] == ["relay"]
+    assert captured["session"] is not None
+
+
 def test_main_rejects_prompt_with_interactive(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(SystemExit) as exc:
         main(["-i", "task"])
@@ -510,9 +580,10 @@ def test_main_passes_sqlite_options(monkeypatch: pytest.MonkeyPatch) -> None:
         captured["build"] = kwargs
         return object()
 
-    def fake_loop(agent, progress, output, config, debug, show_thinking=True):
+    def fake_loop(agent, progress, output, config, debug, show_thinking=True, relay=None):
         captured["config"] = config
         captured["show_thinking"] = show_thinking
+        captured["relay"] = relay
         return 0
 
     monkeypatch.setattr("minicode.cli.build_agent", fake_build_agent)
@@ -521,7 +592,9 @@ def test_main_passes_sqlite_options(monkeypatch: pytest.MonkeyPatch) -> None:
     assert main(["-i", "--db", "state.sqlite", "--thread", "work"]) == 0
     assert captured["build"]["db_path"] == "state.sqlite"
     assert captured["build"]["checkpoint"] is True
+    assert captured["build"]["relay"] is False
     assert captured["show_thinking"] is True
+    assert captured["relay"] is None
     assert captured["config"] == {"configurable": {"thread_id": "work"}}
 
 

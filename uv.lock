@@ -1091,6 +1091,7 @@ dependencies = [
     { name = "langchain-deepseek" },
     { name = "langgraph" },
     { name = "langgraph-checkpoint-sqlite" },
+    { name = "nemo-relay", extra = ["deepagents"] },
     { name = "python-dotenv" },
     { name = "rich" },
 ]
@@ -1111,6 +1112,7 @@ requires-dist = [
     { name = "langchain-deepseek", specifier = ">=1.1.1" },
     { name = "langgraph", specifier = ">=1.2.20" },
     { name = "langgraph-checkpoint-sqlite", specifier = ">=3.1.3" },
+    { name = "nemo-relay", extras = ["deepagents"], specifier = ">=0.11.1,<0.12" },
     { name = "python-dotenv", specifier = ">=1.2.4" },
     { name = "rich", specifier = ">=15.0.0" },
 ]
@@ -1178,6 +1180,36 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d0/6f/43edf3be2748d0e40974a5ee046a8bb4c9961a4bdd3e7d5c6dcbf32d1af6/mypy_extensions-1.2.0.tar.gz", hash = "sha256:c6e275a07f1c2fc096b62940452d0eaa3f3af7de45d704787866240a7c6d5a51", size = 6566, upload-time = "2026-11-03T16:26:33.692Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b5/99/7b1adac7e97ce7bbda34792dc6e9b2f5cc5cffd1875883f78a818b2a2687/mypy_extensions-1.2.0-py3-none-any.whl", hash = "sha256:993e7a20aa5671eb41a7132cf555af30062da99729601601b9a8382b11cae768", size = 5114, upload-time = "2026-11-03T16:26:32.731Z" },
+]
+
+[[package]]
+name = "nemo-relay"
+version = "0.11.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8c/eb/d0743f8fc560421790ab98debce09889bad19e2d6f136bde083bc10fdac9/nemo_relay-0.11.1.tar.gz", hash = "sha256:fec74b8ce26b34fc3c623bb6051d08bf57a99af79206552b5894991dcd4de0bd", size = 2370766, upload-time = "2026-11-04T16:16:55.712Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1f/1d/79351abdbc434a24fa01e671d6657fbbc99b1027ca939dafefd8080e542f/nemo_relay-0.11.1-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:525f46a42827aff01b1d89535544c104a9d56d206f7533286c608e57abc5141c", size = 11626150, upload-time = "2026-11-04T16:16:03.057Z" },
+    { url = "https://files.pythonhosted.org/packages/f2/3a/8517cfb3a81ca48ef586f2782d9f8c5b93f423eceea24ce7fb9c127a7c0a/nemo_relay-0.11.1-cp311-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:187e151dfb28226ef67fec952f00f49630e2bcbdb1b6a5b9133cd4aed5b0d3d3", size = 10411642, upload-time = "2026-11-04T16:16:05.998Z" },
+    { url = "https://files.pythonhosted.org/packages/57/e4/51816c5079c47ff40047e09cb5264f669bea82667f66c29db6880e285a2f/nemo_relay-0.11.1-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e039e97fc2b8b6a5574ece12717ec5d17f492ed048a77a7a270c1a40e101572b", size = 11133886, upload-time = "2026-11-04T16:16:08.82Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/e8/7817b8c618c4004dbc1ce82cee58efbcee58933de728efe9e5b9423c0c92/nemo_relay-0.11.1-cp311-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:353416a5ad6f09ada3cc3566663a2423b577cde722eb54ea547701f92e951811", size = 12823207, upload-time = "2026-11-04T16:16:11.557Z" },
+    { url = "https://files.pythonhosted.org/packages/c2/91/14ac40a48b12a0c6ec5d04e226223fc78871c53097c9b1bb7d698af9c8f1/nemo_relay-0.11.1-cp311-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:760f91d89192096cbf94f77333ddb12a95f24ecaad80ba0ad8bde4135f104aa3", size = 13365350, upload-time = "2026-11-04T16:16:14.677Z" },
+    { url = "https://files.pythonhosted.org/packages/40/2f/6e5fc4198e581cfd1ab16842e4b7d015ae130c88db3e77913b4f53344887/nemo_relay-0.11.1-cp311-abi3-win_amd64.whl", hash = "sha256:080bee4c7a2b81aa14207da3507803f20c2248658593a52e2a353127a7660a50", size = 11016631, upload-time = "2026-11-04T16:16:17.332Z" },
+    { url = "https://files.pythonhosted.org/packages/da/48/8f0f065d23904773e0d8d2a854937329a50e5336b3a64166b86f264faabb/nemo_relay-0.11.1-cp311-abi3-win_arm64.whl", hash = "sha256:918ee4d18552db3808beb63f5b9225f54b20e312bb44d2ac6eec4fa439ef6ef6", size = 10520301, upload-time = "2026-11-04T16:16:19.899Z" },
+]
+
+[package.optional-dependencies]
+deepagents = [
+    { name = "cryptography" },
+    { name = "deepagents" },
+    { name = "langchain" },
+    { name = "langchain-anthropic" },
+    { name = "langchain-core" },
+    { name = "langgraph" },
+    { name = "langgraph-checkpoint" },
+    { name = "langgraph-sdk" },
+    { name = "langsmith" },
+    { name = "pyasn1" },
+    { name = "pydantic" },
 ]
 
 [[package]]

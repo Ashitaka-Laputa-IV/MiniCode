@@ -138,6 +138,7 @@ def build_agent(
     db_path: str | Path | None = None,
     permission_mode: str | PermissionMode = PermissionMode.ASK,
     shell_allow_list: str | list[str] | None = None,
+    relay: bool = False,
 ) -> "CompiledStateGraph":
     """Build the minimal Deep Agents coding harness for one workspace.
 
@@ -183,16 +184,21 @@ def build_agent(
         checkpointer = build_checkpointer(root_path, db_path)
     elif mode == PermissionMode.ASK:
         checkpointer = InMemorySaver()
+    kwargs: dict[str, Any] = {
+        "model": model_name,
+        "system_prompt": SYSTEM_PROMPT.format(shell=shell_hint()),
+        "backend": backend,
+        "interrupt_on": interrupt_on,
+        "debug": debug,
+        "name": "minicode",
+        "checkpointer": checkpointer,
+    }
+    if relay:
+        from nemo_relay.integrations.deepagents import add_nemo_relay_integration
+
+        kwargs = add_nemo_relay_integration(kwargs, position="inner")
     try:
-        return create_deep_agent(
-            model=model_name,
-            system_prompt=SYSTEM_PROMPT.format(shell=shell_hint()),
-            backend=backend,
-            interrupt_on=interrupt_on,
-            debug=debug,
-            name="minicode",
-            checkpointer=checkpointer,
-        )
+        return create_deep_agent(**kwargs)
     except Exception:
         conn = getattr(checkpointer, "conn", None)
         if conn is not None:
