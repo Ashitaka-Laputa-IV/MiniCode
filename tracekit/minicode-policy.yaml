@@ -1,0 +1,19 @@
+# Map MiniCode's Deep Agents tool names to Tracekit policy classes.
+#
+# The dev signer always uses Tracekit's bundled dev.yaml, so this file is for
+# a configured signer. `scripts/build_tracekit_policy.py` copies Tracekit's
+# packs next to it and compiles a self-contained JSON policy.
+extends: packs/dev.yaml
+description: MiniCode tools for the Tracekit dev policy
+unknown_tools: flag
+tools:
+  execute: shell
+  read_file: fs
+  write_file: fs
+  edit_file: fs
+  delete: fs
+  ls: fs
+  glob: fs
+  grep: fs
+  write_todos: app
+  task: app

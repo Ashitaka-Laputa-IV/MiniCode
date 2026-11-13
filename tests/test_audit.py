@@ -50,11 +50,20 @@ def test_start_audit_requires_an_adapter(monkeypatch: pytest.MonkeyPatch) -> Non
         start_audit()
 
 
-def test_audit_hint_includes_run_id() -> None:
+def test_audit_hint_includes_run_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TRACEKIT_SIGNER", raising=False)
     assert audit_hint(SimpleNamespace(run_id="run-1")) == (
         "audit run recorded (run run-1); verify with: tracekit last"
     )
 
 
-def test_audit_hint_without_run_id() -> None:
+def test_audit_hint_without_run_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TRACEKIT_SIGNER", raising=False)
     assert audit_hint(object()) == "audit run recorded; verify with: tracekit last"
+
+
+def test_audit_hint_with_configured_signer(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TRACEKIT_SIGNER", "tcp://127.0.0.1:1234")
+    assert audit_hint(SimpleNamespace(run_id="run-1")) == (
+        "audit run recorded (run run-1); view with: tracekit view --config <signer.yaml>"
+    )

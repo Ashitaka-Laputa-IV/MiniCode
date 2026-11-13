@@ -6,6 +6,7 @@ normal MiniCode runs stay offline and do not depend on a signer process.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 
@@ -27,7 +28,7 @@ def start_audit() -> Any:
         ) from exc
 
     try:
-        run = tracekit.instrument()
+        run = tracekit.instrument()  # type: ignore[attr-defined]
     except Exception as exc:
         raise AuditError(f"could not start the Tracekit audit run: {exc}") from exc
 
@@ -40,7 +41,9 @@ def start_audit() -> Any:
 
 
 def audit_hint(run: Any) -> str:
-    """Return a short hint telling the user how to verify the recorded run."""
+    """Return a short hint telling the user how to inspect the recorded run."""
     run_id = getattr(run, "run_id", None)
     suffix = f" (run {run_id})" if run_id else ""
+    if os.environ.get("TRACEKIT_SIGNER"):
+        return f"audit run recorded{suffix}; view with: tracekit view --config <signer.yaml>"
     return f"audit run recorded{suffix}; verify with: tracekit last"

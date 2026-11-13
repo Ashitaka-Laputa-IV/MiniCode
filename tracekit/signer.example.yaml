@@ -1,0 +1,18 @@
+# Configured Tracekit signer for MiniCode's mapped policy.
+#
+# 1. uv run python scripts/build_tracekit_policy.py
+# 2. uv run tracekit signer serve --config tracekit/signer.example.yaml
+#
+# Relative paths resolve from this file.
+data_dir: ../.minicode/tracekit/signer
+tcp_endpoint: ../.minicode/tracekit/signer/endpoint.json
+policy: ../.minicode/tracekit/minicode-policy.json
+
+# Local, same-user setup: let this user answer Tracekit's own holds.
+approvals:
+  self_approval: allow
+
+# Keep redacted content for the local viewer, like the dev signer does.
+content:
+  retain: true
+  retention_days: 7

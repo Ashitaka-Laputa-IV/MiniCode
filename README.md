@@ -179,6 +179,10 @@ uv run tracekit view --dev
 still holds their redacted content (7 days). The `.tkb` bundle keeps hashes
 and commitments by default, not readable prompts or tool output.
 
+To map MiniCode's tool names to Tracekit's shell/file policy classes instead of
+flagging every call as an unknown tool, see
+[`tracekit/README.md`](tracekit/README.md).
+
 This is evidence, not a sandbox or a replacement for `--permission-mode`.
 Tracekit runs as your user in dev mode, so it cannot protect against an agent
 that deliberately rewrites the record. On Windows, approvals are unavailable;
