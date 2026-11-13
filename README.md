@@ -79,6 +79,10 @@ uv run minicode --model deepseek:deepseek-reasoner "review this change"
 
 Install that provider's integration package first, for example `uv add langchain-anthropic` or `uv add langchain-openai`.
 
+When the selected model emits reasoning, MiniCode prints it to stderr as a dim
+`thinking` block before tool calls and the final answer. stdout still contains
+only the final answer. Use `--no-thinking` to suppress it.
+
 ## Task evals
 
 The `smoke` suite contains 20 offline fixture tasks: bug fixes, test additions,
@@ -118,21 +122,54 @@ uv run pytest -q --cov=minicode --cov-report=term-missing
 ```
 
 Format changed files with `uv run ruff format .`. Coverage must stay at or above
-50%; the floor is configured in `pyproject.toml` and should be raised as
+70%; the floor is configured in `pyproject.toml` and should be raised as
 coverage improves. New code should come with tests rather than relying on the
 floor.
+
+Live tests call a real model and are excluded from the default run:
+
+```bash
+uv run pytest -m live -q
+```
+
+They require `DEEPSEEK_API_KEY`, currently support DeepSeek models only, and
+fail when the key or model is missing. They are never part of PR CI. Use the
+**Live tests** workflow in the Actions tab for a manual run.
 
 PR CI runs unit tests and static checks only and never calls a model. Live evals
 are manual: use the **Live eval** workflow in the Actions tab (it requires a
 `DEEPSEEK_API_KEY` repository secret) or run the commands above locally. See
 [`evals/README.md`](evals/README.md) for details and cost notes.
 
+## Permissions
+
+MiniCode defaults to `ask` mode. Tool calls are gated before execution:
+
+- `read-only`: file writes/deletes and non-safe shell commands are denied.
+- `ask` (default): file writes/deletes and risky shell commands require
+  approval; safe read-only commands run directly. Without a TTY, gated actions
+  are rejected instead of blocking.
+- `yolo`: skips approvals, but common catastrophic commands on the hard
+  deny-list are still blocked.
+
+```bash
+uv run minicode --permission-mode read-only "review this change"
+uv run minicode --permission-mode yolo "fix the tests"
+uv run minicode --shell-allow-list "git status,uv run pytest" "check the tests"
+```
+
+`MINICODE_PERMISSION_MODE` and `MINICODE_SHELL_ALLOW_LIST` provide defaults
+from the shell environment; the `.env` loader intentionally applies only the
+model and provider keys. `--shell-allow-list` also accepts `recommended` or
+`all`.
+
 ## Safety
 
-The agent uses `LocalShellBackend`: it can read and write files and run arbitrary
-shell commands with your user permissions. There is no human-in-the-loop
-approval loop, so destructive commands can run unattended. Use it only in
-workspaces you trust and only for tasks you are willing to let run.
+The agent uses `PolicyShellBackend`, which wraps `LocalShellBackend`: it can
+read and write files and run shell commands with your user permissions. Permission modes and the hard deny-list are
+guardrails, **not a sandbox**; a determined command can still reach the host.
+Use the agent only in workspaces you trust, and use a container or VM for
+untrusted code.
 
 Shell commands receive a filtered environment: common OS/PATH/temp variables
 plus Python and uv paths. Provider API keys are not inherited by the agent's
@@ -140,5 +177,5 @@ shell commands.
 
 ## Project tooling
 
-- OpenCode MCP servers: `docs-langchain`, `reference-langchain` (see `opencode.json`)
+- MCP servers: `docs-langchain`, `reference-langchain` (see `opencode.json` for OpenCode, `.github/mcp.json` for GitHub Copilot CLI and the Copilot app)
 - Project skill: `caveman` under `.agents/skills/` (see `AGENTS.md`)

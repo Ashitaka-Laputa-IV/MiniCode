@@ -63,7 +63,12 @@ def usage(message: Any) -> dict[str, int]:
 
 
 def run_full(prompt: str, root: Path, model: str | None, max_tool_calls: int) -> dict[str, Any]:
-    agent = build_agent(model=model, root=root, checkpoint=False)
+    agent = build_agent(
+        model=model,
+        root=root,
+        checkpoint=False,
+        permission_mode="yolo",
+    )
     started = time.perf_counter()
     final = None
     tool_calls = 0

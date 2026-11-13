@@ -21,6 +21,10 @@ no tools. `all` runs both baselines. A bare-only run is informational and exits
 Reports are written only when `--json` is passed. `evals/results/` is ignored by
 git.
 
+The eval worker runs in a non-interactive subprocess, so it explicitly uses
+`permission_mode="yolo"`. Fixtures are copied to temporary directories, and the
+shell hard deny-list still applies, but this is not a sandbox.
+
 ## Task layout
 
 ```text

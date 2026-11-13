@@ -4,12 +4,16 @@ import os
 import sqlite3
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from deepagents import create_deep_agent
-from deepagents.backends import LocalShellBackend
+from langchain.agents.middleware import InterruptOnConfig
 from langchain_core.language_models import BaseChatModel
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.sqlite import SqliteSaver
+
+from .backends import PolicyShellBackend
+from .policy import PermissionMode, Policy
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -132,6 +136,8 @@ def build_agent(
     debug: bool = False,
     checkpoint: bool = False,
     db_path: str | Path | None = None,
+    permission_mode: str | PermissionMode = PermissionMode.ASK,
+    shell_allow_list: str | list[str] | None = None,
 ) -> "CompiledStateGraph":
     """Build the minimal Deep Agents coding harness for one workspace.
 
@@ -140,25 +146,56 @@ def build_agent(
     """
     root_path = resolve_root(root)
     model_name = model if isinstance(model, BaseChatModel) else resolve_model(model)
+    mode = PermissionMode.parse(permission_mode)
+    policy = Policy(mode, allow_commands=shell_allow_list)
 
-    backend = LocalShellBackend(
+    backend = PolicyShellBackend(
         root_dir=root_path,
         env=shell_env(),
         inherit_env=False,
+        policy=policy,
     )
 
-    checkpointer = build_checkpointer(root_path, db_path) if checkpoint else None
+    interrupt_on: dict[str, bool | InterruptOnConfig] | None = None
+    if mode == PermissionMode.ASK:
+
+        def needs_shell_approval(request: Any) -> bool:
+            command = request.tool_call.get("args", {}).get("command", "")
+            return isinstance(command, str) and policy.needs_approval(command)
+
+        file_gate = InterruptOnConfig(
+            allowed_decisions=["approve", "reject"],
+            description="File change requires approval",
+        )
+        interrupt_on = {
+            "write_file": file_gate,
+            "edit_file": file_gate,
+            "delete": file_gate,
+            "execute": InterruptOnConfig(
+                allowed_decisions=["approve", "reject"],
+                description="Shell command requires approval",
+                when=needs_shell_approval,
+            ),
+        }
+
+    checkpointer: SqliteSaver | InMemorySaver | None = None
+    if checkpoint:
+        checkpointer = build_checkpointer(root_path, db_path)
+    elif mode == PermissionMode.ASK:
+        checkpointer = InMemorySaver()
     try:
         return create_deep_agent(
             model=model_name,
             system_prompt=SYSTEM_PROMPT.format(shell=shell_hint()),
             backend=backend,
+            interrupt_on=interrupt_on,
             debug=debug,
             name="minicode",
             checkpointer=checkpointer,
         )
     except Exception:
-        if checkpointer is not None:
+        conn = getattr(checkpointer, "conn", None)
+        if conn is not None:
             with suppress(Exception):
-                checkpointer.conn.close()
+                conn.close()
         raise
