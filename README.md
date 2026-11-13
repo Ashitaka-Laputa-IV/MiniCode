@@ -192,10 +192,11 @@ uv run minicode --relay "fix the tests"
 
 Alternatively use [`plugins.langsmith.example.toml`](plugins.langsmith.example.toml)
 with `--relay-plugins`; it reads the key from `LANGSMITH_API_KEY` instead of
-storing it in the file. Use `eu.api.smith.langchain.com` or
-`apac.api.smith.langchain.com` for those regions, or
-`https://<host>/api/v1/otel/v1/traces` for self-hosted LangSmith. For an
-agent-based workspace, replace `Langsmith-Project` with
+storing it in the file. `LANGSMITH_API_KEY` may also live in `.env`: MiniCode
+loads it for the process but does not pass it to the agent's shell. Use
+`eu.api.smith.langchain.com` or `apac.api.smith.langchain.com` for those
+regions, or `https://<host>/api/v1/otel/v1/traces` for self-hosted LangSmith.
+For an agent-based workspace, replace `Langsmith-Project` with
 `Langsmith-Agent-Id` and `Langsmith-Agent-Environment`.
 
 NeMo Relay is beta and only observes calls; it does not change permissions or

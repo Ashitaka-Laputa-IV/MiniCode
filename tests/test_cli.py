@@ -283,6 +283,21 @@ def test_load_env_from_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert "OPENAI_BASE_URL" not in os.environ
 
 
+def test_load_env_applies_langsmith_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / ".env").write_text(
+        "LANGSMITH_API_KEY=lsv2_pt_test\nOTEL_EXPORTER_OTLP_HEADERS=x-api-key=test\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("LANGSMITH_API_KEY", raising=False)
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_HEADERS", raising=False)
+
+    load_env()
+
+    assert os.environ["LANGSMITH_API_KEY"] == "lsv2_pt_test"
+    assert "OTEL_EXPORTER_OTLP_HEADERS" not in os.environ
+
+
 def test_load_env_from_parent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text("MINICODE_MODEL=deepseek:deepseek-reasoner\n", encoding="utf-8")
