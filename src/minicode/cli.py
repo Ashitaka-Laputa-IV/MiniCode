@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import argparse
-import getpass
 import json
 import os
 import sys
-from pathlib import Path
 from typing import Any
 
 from dotenv import dotenv_values, find_dotenv
@@ -21,9 +19,7 @@ from .agent import (
     resolve_model,
     resolve_root,
 )
-from .audit import AuditLogger
 from .policy import PermissionMode
-from .redaction import display_args, summarize_args
 
 ENV_ALLOWLIST = {
     "ANTHROPIC_API_KEY",
@@ -137,7 +133,7 @@ def print_update(update: Any, console: Console, show_thinking: bool = True) -> A
                     args = call.get("args", {}) if isinstance(call, dict) else {}
                     console.print(
                         f"[bold cyan]->[/] [bold]{escape(str(name))}[/] "
-                        f"[dim]{escape(short_json(summarize_args(name, args)))}[/]"
+                        f"[dim]{escape(short_json(args))}[/]"
                     )
             elif getattr(message, "type", None) == "tool":
                 name = getattr(message, "name", "tool")
@@ -170,18 +166,7 @@ def print_error(console: Console, exc: Exception) -> None:
         console.print(f"[red]minicode:[/] {escape(str(exc))}")
 
 
-def approver_name() -> str | None:
-    try:
-        return getpass.getuser() or None
-    except (OSError, KeyError):
-        return None
-
-
-def ask_approval(
-    interrupt: Any,
-    progress: Console,
-    audit: AuditLogger | None = None,
-) -> list[dict[str, str]]:
+def ask_approval(interrupt: Any, progress: Console) -> list[dict[str, str]]:
     """Ask the user to approve each action in one interrupt."""
     value = getattr(interrupt, "value", {})
     action_requests = value.get("action_requests", []) if isinstance(value, dict) else []
@@ -191,27 +176,13 @@ def ask_approval(
     for action in action_requests:
         name = str(action.get("name", "tool"))
         args = action.get("args", {})
-        description = action.get("description") or f"Tool: {name}"
+        description = action.get("description") or f"Tool: {name}\nArgs: {short_json(args)}"
         progress.print(f"[yellow]approval required[/] [bold]{escape(name)}[/]")
         progress.print(str(description), markup=False, style="dim", soft_wrap=True)
-        progress.print(
-            short_json(display_args(name, args), limit=400),
-            markup=False,
-            style="dim",
-            soft_wrap=True,
-        )
+        progress.print(short_json(args), markup=False, style="dim", soft_wrap=True)
 
         if not interactive:
             progress.print("[yellow]stdin is not a TTY; rejecting[/]")
-            if audit is not None:
-                audit.log(
-                    "approval",
-                    tool=name,
-                    decision="reject",
-                    approver=None,
-                    reason="stdin is not a TTY",
-                    args=summarize_args(name, args),
-                )
             decisions.append(
                 {
                     "type": "reject",
@@ -224,17 +195,7 @@ def ask_approval(
             continue
 
         answer = progress.input("[bold]approve?[/] [dim]\\[y/N][/] ").strip().lower()
-        approved = answer in {"y", "yes"}
-        if audit is not None:
-            audit.log(
-                "approval",
-                tool=name,
-                decision="approve" if approved else "reject",
-                approver=approver_name(),
-                reason="user approved" if approved else "user rejected",
-                args=summarize_args(name, args),
-            )
-        if approved:
+        if answer in {"y", "yes"}:
             decisions.append({"type": "approve"})
         else:
             decisions.append(
@@ -247,18 +208,14 @@ def ask_approval(
     return decisions
 
 
-def resume_command(
-    interrupts: list[Any],
-    progress: Console,
-    audit: AuditLogger | None = None,
-) -> Command:
+def resume_command(interrupts: list[Any], progress: Console) -> Command:
     """Build the LangGraph resume command for one or more pending interrupts."""
     if len(interrupts) == 1:
-        return Command(resume={"decisions": ask_approval(interrupts[0], progress, audit)})
+        return Command(resume={"decisions": ask_approval(interrupts[0], progress)})
 
     return Command(
         resume={
-            interrupt.id: {"decisions": ask_approval(interrupt, progress, audit)}
+            interrupt.id: {"decisions": ask_approval(interrupt, progress)}
             for interrupt in interrupts
         }
     )
@@ -270,7 +227,6 @@ def run_turn(
     progress: Console,
     config: dict[str, Any],
     show_thinking: bool = True,
-    audit: AuditLogger | None = None,
 ) -> Any:
     """Run one user turn, handling human-in-the-loop interrupts."""
     final_message = None
@@ -292,7 +248,7 @@ def run_turn(
 
         if not pending:
             break
-        stream_input = resume_command(pending, progress, audit)
+        stream_input = resume_command(pending, progress)
 
     return final_message
 
@@ -316,7 +272,6 @@ def interactive_loop(
     config: dict[str, Any],
     debug: bool,
     show_thinking: bool = True,
-    audit: AuditLogger | None = None,
 ) -> int:
     """Run a simple REPL until EOF or /exit."""
     output.print("[bold]Interactive mode[/] [dim]Type /help for commands, /exit to quit.[/]")
@@ -342,14 +297,7 @@ def interactive_loop(
             continue
 
         try:
-            final_message = run_turn(
-                agent,
-                prompt,
-                progress,
-                config,
-                show_thinking=show_thinking,
-                audit=audit,
-            )
+            final_message = run_turn(agent, prompt, progress, config, show_thinking=show_thinking)
         except KeyboardInterrupt:
             reset_thread(config, agent)
             progress.print("[yellow]Interrupted. Context reset.[/]")
@@ -402,16 +350,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--shell-allow-list",
         default=os.getenv("MINICODE_SHELL_ALLOW_LIST"),
         help=("comma-separated shell command prefixes to auto-approve, or 'recommended' / 'all'"),
-    )
-    parser.add_argument(
-        "--audit-log",
-        default=os.getenv("MINICODE_AUDIT_LOG"),
-        help="JSONL audit log path (default: <root>/.minicode/audit.jsonl)",
-    )
-    parser.add_argument(
-        "--no-audit",
-        action="store_true",
-        help="disable the local JSONL audit log",
     )
     parser.add_argument(
         "--no-thinking",
@@ -470,23 +408,9 @@ def main(argv: list[str] | None = None) -> int:
     agent = None
     try:
         thread_id = (args.thread or "default").strip() or "default"
-        root_path = resolve_root(args.root)
-        audit = None
-        if not args.no_audit:
-            audit_path = (
-                Path(args.audit_log).expanduser()
-                if args.audit_log
-                else root_path / ".minicode" / "audit.jsonl"
-            )
-            if args.audit_log and not audit_path.is_absolute():
-                audit_path = root_path / audit_path
-            audit = AuditLogger(
-                audit_path,
-                session_id=thread_id,
-                mode=args.permission_mode.value,
-            )
         if args.debug:
             model_name = resolve_model(args.model)
+            root_path = resolve_root(args.root)
             progress.print(f"[dim]workspace[/] {escape(str(root_path))}")
             progress.print(f"[dim]model[/] {escape(model_name)}")
             progress.print(f"[dim]thread[/] {escape(thread_id)}")
@@ -499,7 +423,6 @@ def main(argv: list[str] | None = None) -> int:
             db_path=args.db,
             permission_mode=args.permission_mode,
             shell_allow_list=args.shell_allow_list,
-            audit=audit,
         )
         config = make_config(thread_id)
 
@@ -510,7 +433,6 @@ def main(argv: list[str] | None = None) -> int:
                 progress,
                 config,
                 show_thinking=args.show_thinking,
-                audit=audit,
             )
             if final_message is not None:
                 print_final(final_message, output)
@@ -523,7 +445,6 @@ def main(argv: list[str] | None = None) -> int:
             config,
             args.debug,
             show_thinking=args.show_thinking,
-            audit=audit,
         )
     except KeyboardInterrupt:
         progress.print("\n[yellow]Interrupted.[/]")
