@@ -111,6 +111,26 @@ def test_short_json_truncates() -> None:
     assert short_json("x" * 200, limit=10).endswith("...")
 
 
+def test_print_update_redacts_tool_args() -> None:
+    console = Console(record=True, width=200, force_terminal=False)
+    tool_call = SimpleNamespace(
+        type="ai",
+        tool_calls=[
+            {
+                "name": "execute",
+                "args": {"command": "curl -H 'Authorization: Bearer abcdefghijklmnop'"},
+            }
+        ],
+        content="",
+    )
+
+    print_update({"model": {"messages": [tool_call]}}, console)
+
+    text = console.export_text()
+    assert "abcdefghijklmnop" not in text
+    assert "***" in text
+
+
 def test_print_update_renders_tool_activity() -> None:
     console = Console(record=True, width=200, force_terminal=False)
     tool_call = SimpleNamespace(
@@ -206,6 +226,7 @@ def test_print_final_renders_markdown_on_terminal() -> None:
 def test_parser_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("MINICODE_PERMISSION_MODE", raising=False)
     monkeypatch.delenv("MINICODE_SHELL_ALLOW_LIST", raising=False)
+    monkeypatch.delenv("MINICODE_AUDIT_LOG", raising=False)
     args = build_parser().parse_args(["fix", "the", "bug"])
     assert args.prompt == ["fix", "the", "bug"]
     assert args.model is None
@@ -217,6 +238,8 @@ def test_parser_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert args.show_thinking is True
     assert args.permission_mode is PermissionMode.ASK
     assert args.shell_allow_list is None
+    assert args.audit_log is None
+    assert args.no_audit is False
 
 
 def test_parser_no_thinking() -> None:
@@ -234,6 +257,19 @@ def test_parser_permission_options() -> None:
     )
     assert args.permission_mode is PermissionMode.READ_ONLY
     assert args.shell_allow_list == "git status,ls"
+
+
+def test_parser_audit_options() -> None:
+    args = build_parser().parse_args(["--audit-log", "logs/audit.jsonl", "--no-audit"])
+
+    assert args.audit_log == "logs/audit.jsonl"
+    assert args.no_audit is True
+
+
+def test_parser_audit_log_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MINICODE_AUDIT_LOG", "logs/from-env.jsonl")
+
+    assert build_parser().parse_args([]).audit_log == "logs/from-env.jsonl"
 
 
 def test_parser_thread_and_db() -> None:
@@ -503,26 +539,70 @@ def test_main_rejects_sqlite_options_with_stdin_prompt(
     assert exc.value.code == 2
 
 
-def test_main_passes_sqlite_options(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_main_passes_sqlite_options(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict = {}
 
     def fake_build_agent(**kwargs):
         captured["build"] = kwargs
         return object()
 
-    def fake_loop(agent, progress, output, config, debug, show_thinking=True):
+    def fake_loop(agent, progress, output, config, debug, show_thinking=True, audit=None):
         captured["config"] = config
         captured["show_thinking"] = show_thinking
+        captured["audit"] = audit
         return 0
 
     monkeypatch.setattr("minicode.cli.build_agent", fake_build_agent)
     monkeypatch.setattr("minicode.cli.interactive_loop", fake_loop)
 
-    assert main(["-i", "--db", "state.sqlite", "--thread", "work"]) == 0
+    assert main(["-i", "--root", str(tmp_path), "--db", "state.sqlite", "--thread", "work"]) == 0
     assert captured["build"]["db_path"] == "state.sqlite"
     assert captured["build"]["checkpoint"] is True
+    audit = captured["build"]["audit"]
+    assert audit is not None
+    assert audit.path == tmp_path / ".minicode" / "audit.jsonl"
+    assert audit.session_id == "work"
+    assert audit.mode == "ask"
     assert captured["show_thinking"] is True
     assert captured["config"] == {"configurable": {"thread_id": "work"}}
+
+
+def test_main_disables_audit_with_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict = {}
+
+    def fake_build_agent(**kwargs):
+        captured["build"] = kwargs
+        return object()
+
+    def fake_loop(agent, progress, output, config, debug, show_thinking=True, audit=None):
+        return 0
+
+    monkeypatch.setattr("minicode.cli.build_agent", fake_build_agent)
+    monkeypatch.setattr("minicode.cli.interactive_loop", fake_loop)
+
+    assert main(["-i", "--root", str(tmp_path), "--no-audit"]) == 0
+    assert captured["build"]["audit"] is None
+
+
+def test_main_resolves_relative_audit_log_under_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict = {}
+
+    def fake_build_agent(**kwargs):
+        captured["build"] = kwargs
+        return object()
+
+    def fake_loop(agent, progress, output, config, debug, show_thinking=True, audit=None):
+        return 0
+
+    monkeypatch.setattr("minicode.cli.build_agent", fake_build_agent)
+    monkeypatch.setattr("minicode.cli.interactive_loop", fake_loop)
+
+    assert main(["-i", "--root", str(tmp_path), "--audit-log", "logs/audit.jsonl"]) == 0
+    audit = captured["build"]["audit"]
+    assert audit is not None
+    assert audit.path == tmp_path / "logs" / "audit.jsonl"
 
 
 def test_main_requires_prompt_when_not_tty(monkeypatch: pytest.MonkeyPatch) -> None:

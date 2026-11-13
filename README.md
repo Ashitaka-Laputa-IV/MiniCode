@@ -163,6 +163,39 @@ from the shell environment; the `.env` loader intentionally applies only the
 model and provider keys. `--shell-allow-list` also accepts `recommended` or
 `all`.
 
+### Audit log
+
+Each session appends redacted JSONL records to
+`<workspace>/.minicode/audit.jsonl`. Use `--audit-log <path>` to choose another
+file (relative paths resolve under the workspace) or `--no-audit` to disable
+logging. `MINICODE_AUDIT_LOG` provides the path from the shell environment.
+
+The log links three event types so a tool call can be traced end to end:
+
+- `policy`: tool name, mode, decision (`allow` / `ask` / `deny`), reason, and
+  audit-safe arguments.
+- `approval`: approver name, decision, and reason. Non-TTY rejections record
+  `approver: null`.
+- `result`: success flag, duration, exit code for shell commands, error, and
+  file path/byte counts for file writes.
+
+Commands and argument strings pass through best-effort secret redaction
+(provider keys, GitHub/Slack/AWS/Google tokens, bearer headers, URL passwords,
+JSON/Python dict keys, and common `key=value` assignments). Unknown tool string
+arguments are redacted and truncated to 200 characters. File-tool contents are
+not written to the log; `write_file` and `edit_file` record only the path and
+byte count. `execute` records the redacted command text, which may itself embed
+file content (for example a heredoc or `python -c` script). Redaction cannot
+recognize every custom secret format, so do not treat the log as a safe place
+for arbitrary data.
+
+Audit writes fail open: if the log cannot be written, MiniCode prints one
+warning to stderr and keeps working. The file is append-only and local but not
+tamper-proof; it is intended for local traceability, not compliance. The log is
+a security record, so `read-only` mode still writes it by default; use
+`--no-audit` or `--audit-log` to disable or redirect it. On POSIX the audit file
+is created with mode `0600` and its directory with `0700`.
+
 ## Safety
 
 The agent uses `PolicyShellBackend`, which wraps `LocalShellBackend`: it can

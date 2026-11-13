@@ -1,4 +1,5 @@
 import io
+import json
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ from langgraph.types import Command
 from rich.console import Console
 
 from minicode.agent import build_agent
+from minicode.audit import AuditLogger
 from minicode.cli import run_turn
 
 
@@ -198,3 +200,62 @@ def test_execute_requires_approval(tmp_path: Path) -> None:
     tool_messages = [message for message in result.value["messages"] if message.type == "tool"]
     assert any("hitl-ok" in str(message.content) for message in tool_messages)
     assert result.value["messages"][-1].content == "done"
+
+
+def test_run_turn_writes_approval_policy_result_chain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    audit_path = tmp_path / "audit.jsonl"
+    audit = AuditLogger(audit_path, session_id="audit-hitl", mode="ask")
+    model = ToolCallingModel(
+        tool_name="execute",
+        tool_args={"command": "echo audit-ok"},
+    )
+    agent = build_agent(
+        model=model,
+        root=tmp_path,
+        permission_mode="ask",
+        audit=audit,
+    )
+    progress = Console(file=io.StringIO(), force_terminal=False, soft_wrap=True)
+    config = {"configurable": {"thread_id": "audit-hitl"}}
+
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr(Console, "input", lambda self, prompt="": "y")
+
+    run_turn(agent, "run the command", progress, config, audit=audit)
+
+    events = [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines()]
+    assert [event["event"] for event in events] == ["approval", "policy", "result"]
+    assert events[0]["decision"] == "approve"
+    assert events[1]["args"]["command"] == "echo audit-ok"
+    assert events[2]["ok"] is True
+    assert {event["session"] for event in events} == {"audit-hitl"}
+
+
+def test_read_only_write_writes_policy_deny_and_result(tmp_path: Path) -> None:
+    audit_path = tmp_path / "audit.jsonl"
+    audit = AuditLogger(audit_path, session_id="audit-read-only", mode="read-only")
+    model = ToolCallingModel(
+        tool_name="write_file",
+        tool_args={"file_path": "/blocked.txt", "content": "hello"},
+    )
+    agent = build_agent(
+        model=model,
+        root=tmp_path,
+        permission_mode="read-only",
+        audit=audit,
+    )
+
+    agent.invoke(
+        {"messages": [{"role": "user", "content": "write a file"}]},
+        config={"configurable": {"thread_id": "audit-read-only"}},
+        version="v2",
+    )
+
+    events = [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines()]
+    assert [event["event"] for event in events] == ["policy", "result"]
+    assert events[0]["decision"] == "deny"
+    assert events[0]["args"]["file_path"] == "/blocked.txt"
+    assert "hello" not in audit_path.read_text(encoding="utf-8")
+    assert events[1]["ok"] is False
