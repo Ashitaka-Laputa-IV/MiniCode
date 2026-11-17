@@ -107,6 +107,13 @@ pass@k 和失败分类聚合。另有 `security` 套件检查危险命令阻断�
 uv run minicode eval --suite security --baseline minicode-ask --json evals/results/security-ask.json
 ```
 
+`recovery` 套件（同样仅支持 `minicode-ask`）在 HITL interrupt 处暂停，用同一个
+SQLite checkpoint/thread 在第二个 worker 中恢复，并验证写入文件和持久化消息状态：
+
+```bash
+uv run minicode eval --suite recovery --baseline minicode-ask --json evals/results/recovery-ask.json
+```
+
 最新评测数据、token 和成本见英文 README 的
 [Task evals](README.md#task-evals)（避免中英文两份数字漂移）。
 
@@ -114,8 +121,9 @@ uv run minicode eval --suite security --baseline minicode-ask --json evals/resul
 自己挑选的，数字只用于回归跟踪。验证隔离是约定级的：它能阻止配置绕过，但不
 是对抗恶意 agent 的 sandbox。
 
-任务定义在 `evals/tasks/`，suite 在 `evals/suites/smoke.toml`，runner 在
-`src/minicode/evals/`。任务格式见 [`evals/README.md`](evals/README.md)。
+任务定义在 `evals/tasks/`，suite 在 `evals/suites/`（`smoke`、`security`、
+`recovery`），runner 在 `src/minicode/evals/`。任务格式见
+[`evals/README.md`](evals/README.md)。
 
 ## 开发
 

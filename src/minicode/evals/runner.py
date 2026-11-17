@@ -269,8 +269,12 @@ def run_worker(
     trace_file: Path | None = None,
     checkpoint_db: Path | None = None,
     thread_id: str | None = None,
+    pause_on_interrupt: bool = False,
+    resume_approve: bool = False,
+    disable_checkpoint: bool = False,
+    output_name: str | None = None,
 ) -> tuple[dict[str, Any], str]:
-    output_file = workspace.parent / f"worker-{run_index}.json"
+    output_file = workspace.parent / (output_name or f"worker-{run_index}.json")
     started = time.perf_counter()
     command = [
         sys.executable,
@@ -293,6 +297,12 @@ def run_worker(
         command.extend(["--checkpoint-db", str(checkpoint_db)])
     if thread_id is not None:
         command.extend(["--thread", thread_id])
+    if pause_on_interrupt:
+        command.append("--pause-on-interrupt")
+    if resume_approve:
+        command.append("--resume-approve")
+    if disable_checkpoint:
+        command.append("--disable-checkpoint")
     if model:
         command.extend(["--model", model])
 
@@ -340,6 +350,9 @@ def run_task(
     baseline: str,
     run_index: int = 0,
     pricing: dict[str, dict[str, float]],
+    pause_on_interrupt: bool = False,
+    resume_approve: bool = False,
+    disable_checkpoint: bool = False,
 ) -> dict[str, Any]:
     task_root = work_root / f"{task.id}-{baseline}-{run_index}"
     workspace = task_root / "workspace"
@@ -359,6 +372,9 @@ def run_task(
         trace_file=trace_file,
         checkpoint_db=checkpoint_db,
         thread_id=thread_id,
+        pause_on_interrupt=pause_on_interrupt,
+        resume_approve=resume_approve,
+        disable_checkpoint=disable_checkpoint,
     )
     verify_ok = False
     verify_output = ""

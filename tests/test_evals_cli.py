@@ -223,3 +223,50 @@ def test_security_suite_failure_exits_nonzero(monkeypatch: pytest.MonkeyPatch) -
     code = cli.main(["--suite", "security", "--baseline", "minicode-ask"])
 
     assert code == 1
+
+
+def test_recovery_suite_requires_ask(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "load_env", lambda: None)
+    monkeypatch.setattr(cli, "resolve_model", lambda model=None: model or "test-model")
+
+    with pytest.raises(SystemExit, match="minicode-ask"):
+        cli.main(["--suite", "recovery"])
+
+
+def test_recovery_suite_dispatches_with_ask(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = {
+        "suite": "recovery",
+        "summary": {"total": 1, "failed": 0},
+        "work_dir": None,
+    }
+    calls: dict = {}
+    monkeypatch.setattr(cli, "load_env", lambda: None)
+    monkeypatch.setattr(cli, "resolve_model", lambda model=None: model or "test-model")
+    monkeypatch.setattr(
+        cli,
+        "run_recovery_suite",
+        lambda **kwargs: calls.update(kwargs) or report,
+    )
+    monkeypatch.setattr(cli, "print_recovery_report", lambda result: None)
+
+    code = cli.main(["--suite", "recovery", "--baseline", "minicode-ask"])
+
+    assert code == 0
+    assert calls["model"] == "test-model"
+    assert calls["runs"] == 1
+
+
+def test_recovery_suite_failure_exits_nonzero(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = {
+        "suite": "recovery",
+        "summary": {"total": 1, "failed": 1},
+        "work_dir": None,
+    }
+    monkeypatch.setattr(cli, "load_env", lambda: None)
+    monkeypatch.setattr(cli, "resolve_model", lambda model=None: model or "test-model")
+    monkeypatch.setattr(cli, "run_recovery_suite", lambda **kwargs: report)
+    monkeypatch.setattr(cli, "print_recovery_report", lambda result: None)
+
+    code = cli.main(["--suite", "recovery", "--baseline", "minicode-ask"])
+
+    assert code == 1

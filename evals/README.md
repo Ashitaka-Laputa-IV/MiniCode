@@ -2,7 +2,8 @@
 
 This directory contains the `smoke` suite: 20 small, self-contained tasks used
 to answer "does the agent actually change a repository correctly?". It also
-contains a separate `security` suite for policy blocking and canary leak checks.
+contains separate `security` and `recovery` suites for policy blocking/canary
+leak checks and interrupted-checkpoint recovery.
 
 The smoke suite is intentionally small. It is a regression signal, not a claim
 of general coding ability.
@@ -15,6 +16,7 @@ uv run minicode eval --baseline bare --json evals/results/smoke-bare.json
 uv run minicode eval --baseline all --json evals/results/smoke-all.json
 uv run minicode eval --baseline matrix --runs 1 --json evals/results/smoke-matrix.json
 uv run minicode eval --suite security --baseline minicode-ask --json evals/results/security-ask.json
+uv run minicode eval --suite recovery --baseline minicode-ask --json evals/results/recovery-ask.json
 ```
 
 - `full` is the legacy alias for `minicode-yolo`.
@@ -24,6 +26,8 @@ uv run minicode eval --suite security --baseline minicode-ask --json evals/resul
   `k = runs`; the default is 1.
 - `--suite security` runs the separate security suite and requires
   `--baseline minicode-ask`.
+- `--suite recovery` runs the interrupted-checkpoint recovery suite and also
+  requires `--baseline minicode-ask`.
 
 Reports are written only when `--json` is passed. `evals/results/` is ignored by
 git.
@@ -159,6 +163,55 @@ approvals, block rate, false-positive rate, canary leak rate, pass rate, cost,
 and wall time. The suite exits non-zero when any case fails. It is a measurement
 tool, not a PR gate.
 
+## Recovery suite
+
+`evals/suites/recovery.toml` contains a dedicated `recovery-write` fixture.
+The prompt requires the agent to write `RECOVERY_OK` to `result.txt`, so a
+successful resume can be verified without an LLM judge.
+
+```bash
+uv run minicode eval --suite recovery --baseline minicode-ask --json evals/results/recovery-ask.json
+```
+
+The suite runs two subprocess phases against the same temporary SQLite
+checkpoint database and thread id:
+
+1. Phase 1 runs with `pause_on_interrupt=True`. It stops at the first HITL
+   approval request and returns `interrupted`, `interrupt_id`,
+   `pending_actions`, `thread_id`, `checkpoint_db`, and partial trace/usage/tool
+   counts. It does not auto-resume and does not write `result.txt`.
+2. Phase 2 starts with `Command(resume={"decisions": [{"type": "approve"}]})`
+   against the same database and thread. It must finish the task and write the
+   expected content. `--resume-approve` sends one approve decision, matching
+   this fixture's single gated write; prompts with multiple simultaneous
+   interrupts would need decisions for each interrupt.
+
+The suite also runs a no-checkpoint control with the same two phases and
+`disable_checkpoint=True`. `no_checkpoint_control_failed` is true when the
+control behaved as expected: phase 1 interrupted, no checkpoint database was
+created, and the control did not recover the same thread. A fresh execution
+that writes `result.txt` without a checkpoint is reported as
+`fresh_execution` and is not counted as recovery. In `ask` mode the worker
+still uses an in-process `InMemorySaver` so HITL can pause; `disable_checkpoint`
+prevents the SQLite database and any state from surviving the worker
+subprocess, and the worker reports `thread_id` / `checkpoint_db` as null.
+
+Checkpoint verification uses `SqliteSaver.get_tuple` to confirm the thread
+exists and `SqliteSaver.list` to merge persisted `channel_values` with
+`pending_writes`. LangGraph stores channel deltas rather than a full state on
+every checkpoint, so the latest tuple alone can omit earlier `ToolMessage`
+objects. The report records the checkpoint count, message count,
+`tool_messages`, and `repeated_tool_calls` (duplicate tool-call ids or
+signatures). The latest local `result.txt` content, phase completion, and final
+answer text are also checked.
+
+Per-task fields include `recovery_success`, `phase1_interrupted`,
+`phase2_completed`, `checkpoint_exists`, `tool_messages`,
+`repeated_tool_calls`, `final_completion`, `no_checkpoint_control_failed`,
+`duration_s`, `usage`, and `cost_usd`. The summary adds pass/recovery/control
+rates, total tool messages, cost, and wall time. The suite exits non-zero when
+any task fails and is not part of PR CI.
+
 ## CI
 
 PR CI runs unit tests and static checks only; it never calls a model. The
@@ -168,8 +221,8 @@ baseline, `all`, or `matrix`, and accepts a `runs` input for pass@k. It uploads
 the JSON report as an artifact. Live evals cost money and take several minutes,
 so do not add them to pull request checks.
 
-The security suite is not part of PR CI; run it manually with a model key. A
-recovery suite is planned as a separate follow-up.
+The security and recovery suites are not part of PR CI; run them manually with
+a model key. Both require `--baseline minicode-ask`.
 
 ## Adding a task
 

@@ -1,3 +1,4 @@
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -211,6 +212,85 @@ def test_run_worker_recovers_partial_trace(
     assert result["trace_summary"]["tool_calls"] == 1
     assert result["trace_summary"]["usage"] == result["usage"]
     assert result["trace_summary"]["ran_tests"] is True
+
+
+def test_run_worker_forwards_recovery_flags(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    task = load_suite("smoke")[0]
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    captured: dict = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        output = Path(command[command.index("--output") + 1])
+        output.write_text(
+            json.dumps(
+                {
+                    "ok": True,
+                    "interrupted": True,
+                    "interrupt_id": "interrupt-1",
+                    "thread_id": "thread-1",
+                    "checkpoint_db": str(tmp_path / "checkpoint.sqlite"),
+                }
+            ),
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    result, _ = runner.run_worker(
+        task,
+        workspace,
+        None,
+        "minicode-ask",
+        trace_file=tmp_path / "trace.jsonl",
+        checkpoint_db=tmp_path / "checkpoint.sqlite",
+        thread_id="thread-1",
+        pause_on_interrupt=True,
+        resume_approve=True,
+        disable_checkpoint=True,
+        output_name="worker-phase1-0.json",
+    )
+
+    command = captured["command"]
+    assert "--pause-on-interrupt" in command
+    assert "--resume-approve" in command
+    assert "--disable-checkpoint" in command
+    assert command[command.index("--thread") + 1] == "thread-1"
+    assert command[command.index("--output") + 1].endswith("worker-phase1-0.json")
+    assert result["interrupted"] is True
+    assert result["interrupt_id"] == "interrupt-1"
+
+
+def test_run_task_forwards_recovery_flags(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    task = load_suite("smoke")[0]
+    captured: dict = {}
+
+    def fake_worker(*args, **kwargs):
+        captured.update(kwargs)
+        return ({"ok": False, "error": "stopped", "trace_summary": {}}, "")
+
+    monkeypatch.setattr(runner, "run_worker", fake_worker)
+
+    runner.run_task(
+        task,
+        work_root=tmp_path,
+        model=None,
+        baseline="minicode-ask",
+        run_index=0,
+        pricing={},
+        pause_on_interrupt=True,
+        resume_approve=True,
+        disable_checkpoint=True,
+    )
+
+    assert captured["pause_on_interrupt"] is True
+    assert captured["resume_approve"] is True
+    assert captured["disable_checkpoint"] is True
 
 
 def test_run_task_classifies_permission_denied(
