@@ -41,6 +41,18 @@ def test_trace_records_events_and_summary(tmp_path: Path) -> None:
     assert events[-1].type == "interrupt"
 
 
+def test_summary_aggregates_usage_events() -> None:
+    trace = Trace()
+    trace.record("usage", input_tokens=10, output_tokens=2, total_tokens=12)
+    trace.record("usage", input_tokens=5, output_tokens=1, total_tokens=6)
+
+    assert trace.summary()["usage"] == {
+        "input_tokens": 15,
+        "output_tokens": 3,
+        "total_tokens": 18,
+    }
+
+
 def test_trace_sink_adapter() -> None:
     trace = Trace()
     trace.sink("tool_call", {"name": "ls", "args": {}})

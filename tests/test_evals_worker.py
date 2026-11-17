@@ -45,6 +45,36 @@ class HitlAgent:
             yield {"__interrupt__": [FakeInterrupt()]}
 
 
+class HitlUsageAgent:
+    """Replay the interrupted AI message the way LangGraph HITL resume does."""
+
+    def __init__(self) -> None:
+        self.replayed = ai_message(
+            tool_calls=[{"name": "write_file", "id": "call-1", "args": {}}],
+            usage_metadata={"input_tokens": 10, "output_tokens": 2},
+            message_id="ai-1",
+        )
+
+    def stream(self, input: Any, stream_mode: str, config: Any = None):
+        assert stream_mode == "updates"
+        if isinstance(input, Command):
+            yield {
+                "model": {
+                    "messages": [
+                        self.replayed,
+                        ai_message(
+                            content="done",
+                            usage_metadata={"input_tokens": 20, "output_tokens": 3},
+                            message_id="ai-2",
+                        ),
+                    ]
+                }
+            }
+        else:
+            yield {"model": {"messages": [self.replayed]}}
+            yield {"__interrupt__": [FakeInterrupt()]}
+
+
 class FakeModel:
     def invoke(self, prompt: str) -> Any:
         assert prompt == "prompt"
@@ -59,9 +89,11 @@ def ai_message(
     *,
     tool_calls: list[dict] | None = None,
     usage_metadata: dict | None = None,
+    message_id: str | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         type="ai",
+        id=message_id,
         content=content,
         tool_calls=tool_calls or [],
         usage_metadata=usage_metadata or {},
@@ -333,8 +365,12 @@ def test_worker_main_records_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     prompt = tmp_path / "prompt.md"
     prompt.write_text("task", encoding="utf-8")
     output = tmp_path / "worker.json"
+    trace_file = tmp_path / "trace.jsonl"
 
     def fail(*args: Any, **kwargs: Any):
+        with Trace(kwargs["trace_path"]) as trace:
+            trace.record("tool_call", name="execute", args={"command": "pytest -q"})
+            trace.record("usage", input_tokens=12, output_tokens=4)
         raise RuntimeError("boom")
 
     monkeypatch.setattr(worker, "run_full", fail)
@@ -348,6 +384,8 @@ def test_worker_main_records_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: 
                 str(tmp_path),
                 "--output",
                 str(output),
+                "--trace-file",
+                str(trace_file),
             ]
         )
         == 0
@@ -357,6 +395,10 @@ def test_worker_main_records_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert data["error"] == "RuntimeError: boom"
     assert "RuntimeError" in data["traceback"]
     assert data["final"] == ""
+    assert data["tool_calls"] == 1
+    assert data["usage"] == {"input_tokens": 12, "output_tokens": 4}
+    assert data["trace_summary"]["tool_calls"] == 1
+    assert data["trace_summary"]["usage"] == {"input_tokens": 12, "output_tokens": 4}
 
 
 def test_run_agent_stream_resumes_with_scripted_approval() -> None:
@@ -375,6 +417,23 @@ def test_run_agent_stream_resumes_with_scripted_approval() -> None:
     assert agent.resumed is True
     assert trace.summary()["approvals"] == 1
     assert trace.summary()["rejections"] == 0
+
+
+def test_run_agent_stream_does_not_double_count_replayed_usage() -> None:
+    agent = HitlUsageAgent()
+    trace = Trace()
+
+    result = worker.run_agent_stream(
+        agent,
+        "prompt",
+        max_tool_calls=5,
+        trace=trace,
+        approval_policy="eval",
+    )
+
+    assert result["tool_calls"] == 1
+    assert result["usage"] == {"input_tokens": 30, "output_tokens": 5}
+    assert trace.summary()["usage"] == {"input_tokens": 30, "output_tokens": 5}
 
 
 def test_run_agent_stream_rejects_without_policy() -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import time
 import traceback
@@ -18,7 +19,7 @@ from minicode.agent import build_agent, close_checkpointer, resolve_model, shell
 
 from .approval import decide
 from .baselines import WORKER_BASELINE_CHOICES, Baseline, resolve_baseline
-from .trace import Trace
+from .trace import Trace, read_trace, summarize_events
 
 
 def message_text(message: Any) -> str:
@@ -78,6 +79,15 @@ def _call_id(call: dict[str, Any]) -> str:
     return f"{name}:{args}"
 
 
+def _message_key(message: Any) -> str:
+    message_id = getattr(message, "id", None)
+    if message_id:
+        return f"id:{message_id}"
+    calls = getattr(message, "tool_calls", None) or []
+    payload = f"{message_text(message)}\0{json.dumps(calls, sort_keys=True, default=str)}"
+    return f"hash:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
+
+
 def _approval_decision(
     action: dict[str, Any],
     *,
@@ -115,6 +125,7 @@ def run_agent_stream(
     tool_calls = 0
     usage_totals: dict[str, int] = {}
     seen_calls: set[str] = set()
+    seen_messages: set[str] = set()
     stream_input: Any = {"messages": [{"role": "user", "content": prompt}]}
     config = {"configurable": {"thread_id": thread_id}} if thread_id else None
 
@@ -148,8 +159,14 @@ def run_agent_stream(
                         continue
                     if message_type != "ai":
                         continue
-                    for key, value in usage(message).items():
-                        usage_totals[key] = usage_totals.get(key, 0) + value
+                    key = _message_key(message)
+                    if key not in seen_messages:
+                        seen_messages.add(key)
+                        message_usage = usage(message)
+                        if message_usage:
+                            trace.record("usage", **message_usage)
+                        for field, value in message_usage.items():
+                            usage_totals[field] = usage_totals.get(field, 0) + value
                     calls = getattr(message, "tool_calls", None) or []
                     for call in calls:
                         if not isinstance(call, dict):
@@ -330,6 +347,7 @@ def main(argv: list[str] | None = None) -> int:
     prompt = Path(args.prompt_file).read_text(encoding="utf-8")
     baseline = resolve_baseline(args.baseline)
     result: dict[str, Any]
+    started = time.perf_counter()
     try:
         if args.baseline == "bare":
             result = run_bare(prompt, args.model)
@@ -364,16 +382,18 @@ def main(argv: list[str] | None = None) -> int:
             )
         result.update({"ok": True, "baseline": args.baseline, "error": None})
     except Exception as exc:
+        events = read_trace(args.trace_file) if args.trace_file else []
+        trace_summary = summarize_events(events)
         result = {
             "ok": False,
             "baseline": args.baseline,
             "error": f"{type(exc).__name__}: {exc}",
             "traceback": traceback.format_exc(limit=8),
             "final": "",
-            "tool_calls": 0,
-            "usage": {},
-            "duration_s": 0.0,
-            "trace_summary": {},
+            "tool_calls": trace_summary.get("tool_calls", 0),
+            "usage": trace_summary.get("usage", {}),
+            "duration_s": round(time.perf_counter() - started, 3),
+            "trace_summary": trace_summary,
         }
 
     Path(args.output).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")

@@ -107,8 +107,9 @@ to `verification_failed`.
 
 MiniCode and `deepagents-default` runs write a temporary `trace.jsonl` next to
 their workspace; `bare` runs do not. Traces are for evals only and are kept only
-with `--keep`; reports contain summaries, not raw tool output. Do not put
-secrets in fixture files.
+with `--keep`; reports contain summaries, not raw tool output. When a worker is
+interrupted, the report restores partial usage and trace counts from the trace
+file instead of reporting zeroes. Do not put secrets in fixture files.
 
 Update `pricing.toml` when provider prices change.
 
@@ -116,9 +117,10 @@ Update `pricing.toml` when provider prices change.
 
 PR CI runs unit tests and static checks only; it never calls a model. The
 **Live eval** GitHub Actions workflow is manual (`workflow_dispatch`) and
-requires the `DEEPSEEK_API_KEY` repository secret. It uploads the JSON report as
-an artifact. Live evals cost money and take several minutes, so do not add them
-to pull request checks.
+requires the `DEEPSEEK_API_KEY` repository secret. It can run any single
+baseline, `all`, or `matrix`, and accepts a `runs` input for pass@k. It uploads
+the JSON report as an artifact. Live evals cost money and take several minutes,
+so do not add them to pull request checks.
 
 Security and recovery suites are not part of this PR; they will be added in
 separate follow-ups.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from statistics import pstdev
 from typing import Any
@@ -18,6 +19,20 @@ FAILURE_REASONS = (
     "agent_error",
 )
 
+CONTEXT_OVERFLOW_PATTERNS = (
+    r"context[_ ]length[_ ]exceeded",
+    r"maximum context",
+    r"context window",
+    r"context length",
+    r"context.*(?:overflow|too long|exceed)",
+    r"(?:prompt|input).*(?:too long|exceed).*(?:context|model)",
+    r"token limit",
+)
+
+
+def _context_overflow(text: str) -> bool:
+    return any(re.search(pattern, text) for pattern in CONTEXT_OVERFLOW_PATTERNS)
+
 
 def classify_failure(result: dict[str, Any], trace: dict[str, Any] | None = None) -> str:
     """Classify one result using worker, verify, and trace evidence."""
@@ -32,7 +47,7 @@ def classify_failure(result: dict[str, Any], trace: dict[str, Any] | None = None
         return "timeout"
     if "tool call limit" in error:
         return "tool_limit"
-    if "context" in error and any(word in error for word in ("overflow", "window", "too long")):
+    if _context_overflow(error) or _context_overflow(verify_output):
         return "context_overflow"
 
     if not result.get("worker_ok"):

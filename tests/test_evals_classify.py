@@ -1,3 +1,5 @@
+import pytest
+
 from minicode.evals.classify import classify_failure, failure_counts, pass_at_k
 
 
@@ -28,6 +30,19 @@ def test_tool_limit() -> None:
 
 def test_context_overflow() -> None:
     assert classify_failure(result(error="context window overflow")) == "context_overflow"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        "BadRequestError: This model's maximum context length is 65536 tokens",
+        "context_length_exceeded",
+        "prompt is too long for this model",
+        "Input tokens exceed the context window",
+    ],
+)
+def test_common_provider_context_errors(error: str) -> None:
+    assert classify_failure(result(error=error)) == "context_overflow"
 
 
 def test_worker_error() -> None:

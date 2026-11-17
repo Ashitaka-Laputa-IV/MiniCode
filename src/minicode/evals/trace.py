@@ -69,52 +69,67 @@ class Trace:
         self.close()
 
     def summary(self) -> dict[str, Any]:
-        tool_calls = [event.data for event in self.events if event.type == "tool_call"]
-        approvals = [
-            event.data
-            for event in self.events
-            if event.type == "approval" and event.data.get("decision") == "approve"
-        ]
-        rejections = [
-            event.data
-            for event in self.events
-            if event.type == "approval" and event.data.get("decision") == "reject"
-        ]
-        denials = [
-            event.data
-            for event in self.events
-            if event.type == "policy_decision" and event.data.get("action") == "DENY"
-        ]
+        return summarize_events(self.events)
 
-        signatures: dict[str, int] = {}
-        touched_paths: list[str] = []
-        ran_tests = False
-        for call in tool_calls:
-            name = str(call.get("name", ""))
-            args = call.get("args", {})
-            signature = _signature(name, args)
-            signatures[signature] = signatures.get(signature, 0) + 1
-            if name == "execute" and isinstance(args, dict):
-                command = str(args.get("command", "")).lower()
-                if any(marker in command for marker in TEST_COMMAND_MARKERS):
-                    ran_tests = True
-            if name in {"write_file", "edit_file", "delete"} and isinstance(args, dict):
-                path = args.get("file_path") or args.get("path")
-                if path:
-                    touched_paths.append(str(path))
 
-        denial_reasons = Counter(str(event.get("reason", "")) for event in denials)
-        return {
-            "events": len(self.events),
-            "tool_calls": len(tool_calls),
-            "approvals": len(approvals),
-            "rejections": len(rejections),
-            "blocked": len(denials),
-            "ran_tests": ran_tests,
-            "repeated_tool_calls": any(count >= 3 for count in signatures.values()),
-            "denial_reasons": dict(sorted(denial_reasons.items())),
-            "touched_paths": list(dict.fromkeys(touched_paths)),
-        }
+def summarize_events(events: list[TraceEvent]) -> dict[str, Any]:
+    """Summarize trace events, including partial usage from interrupted runs."""
+    tool_calls = [event.data for event in events if event.type == "tool_call"]
+    approvals = [
+        event.data
+        for event in events
+        if event.type == "approval" and event.data.get("decision") == "approve"
+    ]
+    rejections = [
+        event.data
+        for event in events
+        if event.type == "approval" and event.data.get("decision") == "reject"
+    ]
+    denials = [
+        event.data
+        for event in events
+        if event.type == "policy_decision" and event.data.get("action") == "DENY"
+    ]
+
+    signatures: dict[str, int] = {}
+    touched_paths: list[str] = []
+    ran_tests = False
+    for call in tool_calls:
+        name = str(call.get("name", ""))
+        args = call.get("args", {})
+        signature = _signature(name, args)
+        signatures[signature] = signatures.get(signature, 0) + 1
+        if name == "execute" and isinstance(args, dict):
+            command = str(args.get("command", "")).lower()
+            if any(marker in command for marker in TEST_COMMAND_MARKERS):
+                ran_tests = True
+        if name in {"write_file", "edit_file", "delete"} and isinstance(args, dict):
+            path = args.get("file_path") or args.get("path")
+            if path:
+                touched_paths.append(str(path))
+
+    usage: dict[str, int] = {}
+    for event in events:
+        if event.type != "usage":
+            continue
+        for key, value in event.data.items():
+            if key in {"input_tokens", "output_tokens", "total_tokens", "cached_input_tokens"}:
+                if isinstance(value, (int, float)):
+                    usage[key] = usage.get(key, 0) + int(value)
+
+    denial_reasons = Counter(str(event.get("reason", "")) for event in denials)
+    return {
+        "events": len(events),
+        "tool_calls": len(tool_calls),
+        "approvals": len(approvals),
+        "rejections": len(rejections),
+        "blocked": len(denials),
+        "ran_tests": ran_tests,
+        "repeated_tool_calls": any(count >= 3 for count in signatures.values()),
+        "denial_reasons": dict(sorted(denial_reasons.items())),
+        "touched_paths": list(dict.fromkeys(touched_paths)),
+        "usage": usage,
+    }
 
 
 def read_trace(path: str | Path) -> list[TraceEvent]:

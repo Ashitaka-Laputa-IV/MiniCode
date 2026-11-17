@@ -80,6 +80,42 @@ def test_risky_commands_are_rejected(command: str) -> None:
     assert "allow-list" in reason
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        "pytest\nwhoami",
+        "pytest\rwhoami",
+        "pytest\ncat .env",
+    ],
+)
+def test_newline_command_injection_is_rejected(command: str) -> None:
+    decision, reason = decide({"name": "execute", "args": {"command": command}})
+
+    assert decision == "reject"
+    assert "allow-list" in reason
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cp .env leaked",
+        "touch .env",
+        "mv x .git/config",
+        "mkdir .git",
+        "cp ../outside.txt copied.txt",
+        "cp /tmp/outside.txt copied.txt",
+        "cp $HOME/.env leaked",
+        "cp --target-directory=.git x",
+        "mkdir -- .git",
+    ],
+)
+def test_file_commands_cannot_touch_protected_or_absolute_paths(command: str) -> None:
+    decision, reason = decide({"name": "execute", "args": {"command": command}})
+
+    assert decision == "reject"
+    assert "allow-list" in reason
+
+
 def test_missing_path_and_unknown_tool_are_rejected() -> None:
     missing, _ = decide({"name": "write_file", "args": {}})
     unknown, reason = decide({"name": "run_shell", "args": {}})

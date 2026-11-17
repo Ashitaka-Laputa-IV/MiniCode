@@ -26,6 +26,16 @@ on:
           - full
           - bare
           - all
+          - matrix
+          - deepagents-default
+          - minicode-yolo
+          - minicode-ask
+          - minicode-no-checkpoint
+      runs:
+        description: Runs per task and baseline (pass@k; use 1 for a smoke run)
+        required: false
+        default: "1"
+        type: string
       task:
         description: Optional single task id (leave empty to run the whole suite)
         required: false
@@ -72,11 +82,13 @@ jobs:
           EVAL_SUITE: ${{ inputs.suite }}
           EVAL_MODEL: ${{ inputs.model }}
           EVAL_BASELINE: ${{ inputs.baseline }}
+          EVAL_RUNS: ${{ inputs.runs }}
           EVAL_TASK: ${{ inputs.task }}
         run: |
           args=(
             --suite "$EVAL_SUITE"
             --baseline "$EVAL_BASELINE"
+            --runs "$EVAL_RUNS"
             --model "$EVAL_MODEL"
             --json "evals/results/live-${GITHUB_RUN_ID}.json"
           )
