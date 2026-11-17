@@ -36,6 +36,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=1,
         help="run each task this many times (default: 1)",
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="with --baseline matrix, return nonzero when any non-bare baseline fails",
+    )
     parser.add_argument("--model", default=None, help="LangChain model string")
     parser.add_argument(
         "--task",
@@ -128,6 +133,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.keep:
         print(f"work dir: {report['work_dir']}")
+
+    # matrix is informational by default; --strict makes non-bare failures gate.
+    if args.baseline == "matrix" and not args.strict:
+        return 0
 
     # bare is a capability floor; its failures are expected and should not fail CI.
     if baselines == ["bare"]:

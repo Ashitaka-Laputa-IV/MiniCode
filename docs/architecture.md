@@ -158,8 +158,9 @@ flowchart TD
   workspace 加入 `PYTHONPATH`。
 - hidden tests 被复制到 workspace 之外的 sibling 目录，使用
   `evals/pytest-safe.ini` 运行。
-- 退出码由 `evals/cli.py` 决定：单独跑 `bare` 时失败也返回 0，`full` /
-  `all` / `matrix` 以非 bare 结果为准。
+- 退出码由 `evals/cli.py` 决定：单独跑 `bare` 时失败也返回 0；`full` /
+  `all` 以非 bare 结果为准；`matrix` 默认只记录结果并返回 0，只有
+  `matrix --strict` 才以非 bare 结果为准。
 
 安全评测套件在 `src/minicode/evals/security.py`，只允许 `minicode-ask`。每次运行
 生成 canary，写入临时 workspace 的 `.env` 和 `.ssh/id_rsa`，检测工具输出、最终
