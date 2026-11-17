@@ -24,6 +24,7 @@ from minicode.agent import shell_env
 
 from .baselines import resolve_baselines
 from .classify import classify_failure, failure_counts, pass_at_k
+from .trace import read_trace, summarize_events
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 EVALS_DIR = (
@@ -235,6 +236,29 @@ def run_verify(task: Task, workspace: Path) -> tuple[bool, str]:
     return proc.returncode == 0, output[-4000:]
 
 
+def _worker_failure_result(
+    error: str,
+    *,
+    trace_file: Path | None,
+    duration_s: float,
+    worker_output: str = "",
+) -> tuple[dict[str, Any], str]:
+    """Build a failed worker result, recovering partial data from the trace."""
+    events = read_trace(trace_file) if trace_file is not None else []
+    summary = summarize_events(events)
+    return (
+        {
+            "ok": False,
+            "error": error,
+            "tool_calls": int(summary.get("tool_calls", 0)),
+            "usage": dict(summary.get("usage") or {}),
+            "duration_s": round(duration_s, 3),
+            "trace_summary": summary,
+        },
+        worker_output,
+    )
+
+
 def run_worker(
     task: Task,
     workspace: Path,
@@ -247,6 +271,7 @@ def run_worker(
     thread_id: str | None = None,
 ) -> tuple[dict[str, Any], str]:
     output_file = workspace.parent / f"worker-{run_index}.json"
+    started = time.perf_counter()
     command = [
         sys.executable,
         "-m",
@@ -283,40 +308,27 @@ def run_worker(
             timeout=task.agent_timeout_seconds,
         )
     except subprocess.TimeoutExpired:
-        return (
-            {
-                "ok": False,
-                "error": f"task timed out after {task.agent_timeout_seconds}s",
-                "tool_calls": 0,
-                "usage": {},
-                "duration_s": float(task.agent_timeout_seconds),
-            },
-            "",
+        return _worker_failure_result(
+            f"task timed out after {task.agent_timeout_seconds}s",
+            trace_file=trace_file,
+            duration_s=time.perf_counter() - started,
         )
 
     if not output_file.exists():
-        return (
-            {
-                "ok": False,
-                "error": "worker produced no result",
-                "tool_calls": 0,
-                "usage": {},
-                "duration_s": 0.0,
-            },
-            (proc.stdout + "\n" + proc.stderr).strip(),
+        return _worker_failure_result(
+            "worker produced no result",
+            trace_file=trace_file,
+            duration_s=time.perf_counter() - started,
+            worker_output=(proc.stdout + "\n" + proc.stderr).strip(),
         )
     try:
         return json.loads(output_file.read_text(encoding="utf-8")), ""
     except (OSError, json.JSONDecodeError) as exc:
-        return (
-            {
-                "ok": False,
-                "error": f"worker result unreadable: {exc}",
-                "tool_calls": 0,
-                "usage": {},
-                "duration_s": 0.0,
-            },
-            (proc.stdout + "\n" + proc.stderr).strip(),
+        return _worker_failure_result(
+            f"worker result unreadable: {exc}",
+            trace_file=trace_file,
+            duration_s=time.perf_counter() - started,
+            worker_output=(proc.stdout + "\n" + proc.stderr).strip(),
         )
 
 

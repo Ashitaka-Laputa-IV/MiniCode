@@ -54,6 +54,10 @@ def test_delete_of_workspace_file_is_approved() -> None:
         "mv old.py new.py",
         "cp a.py b.py",
         "touch marker",
+        "cp -r a.py b.py",
+        "mkdir -p build",
+        "touch -c marker",
+        r"cp notes\todo.md notes\copy.md",
     ],
 )
 def test_development_commands_are_approved(command: str) -> None:
@@ -107,6 +111,16 @@ def test_newline_command_injection_is_rejected(command: str) -> None:
         "cp $HOME/.env leaked",
         "cp --target-directory=.git x",
         "mkdir -- .git",
+        "cp -t/tmp/out x",
+        "cp -t.. x",
+        "cp -t .git x",
+        "cp .env* leaked",
+        "cp -r .* leaked",
+        "cp -r .[e]nv leaked",
+        "mv -t../outside x",
+        "touch -r.env x",
+        r"mkdir C:\foo",
+        r"mkdir ..\outside",
     ],
 )
 def test_file_commands_cannot_touch_protected_or_absolute_paths(command: str) -> None:

@@ -1,10 +1,12 @@
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
 
 from minicode.evals import runner
 from minicode.evals.runner import cost_for, load_suite, summarize, verification_env
+from minicode.evals.trace import Trace
 
 
 def test_smoke_suite_has_twenty_tasks() -> None:
@@ -164,6 +166,51 @@ def test_summarize_pass_at_k_and_trace_metrics() -> None:
     assert summary["avg_approvals"] == 0.75
     assert summary["avg_blocked"] == 0.25
     assert summary["failure_counts"] == {"loop": 1, "timeout": 1}
+
+
+@pytest.mark.parametrize("failure", ["timeout", "no-output", "bad-output"])
+def test_run_worker_recovers_partial_trace(
+    failure: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    task = load_suite("smoke")[0]
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    trace_file = tmp_path / "trace.jsonl"
+    with Trace(trace_file) as trace:
+        trace.record("usage", input_tokens=100, output_tokens=20, total_tokens=120)
+        trace.record("tool_call", name="execute", args={"command": "pytest -q"})
+
+    output_file = workspace.parent / "worker-0.json"
+
+    def fake_run(*args, **kwargs):
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired("worker", 1)
+        if failure == "bad-output":
+            output_file.write_text("{not json", encoding="utf-8")
+        return subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    result, _ = runner.run_worker(
+        task,
+        workspace,
+        None,
+        "minicode-yolo",
+        trace_file=trace_file,
+    )
+
+    assert result["ok"] is False
+    assert result["tool_calls"] == 1
+    assert result["usage"] == {
+        "input_tokens": 100,
+        "output_tokens": 20,
+        "total_tokens": 120,
+    }
+    assert result["trace_summary"]["tool_calls"] == 1
+    assert result["trace_summary"]["usage"] == result["usage"]
+    assert result["trace_summary"]["ran_tests"] is True
 
 
 def test_run_task_classifies_permission_denied(

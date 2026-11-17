@@ -113,6 +113,10 @@ Latest local run (2026-11-08, `deepseek:deepseek-flash`, one attempt per task):
 | `full` (MiniCode) | 20/20 (100%) | 11.2 | 664,332 / 28,954 | $0.0852 | 585.9s |
 | `bare` (model only) | 0/20 (0%) | 0.0 | 1,323 / 10,334 | $0.0117 | 240.1s |
 
+The `full` row above predates the baseline matrix and used the old `full`
+configuration without checkpointing. The current `full` alias maps to
+`minicode-yolo`, which enables checkpointing.
+
 This is a **smoke suite**, not a general coding benchmark. The tasks are small
 and selected by the same repository; use the numbers for regression tracking,
 not as a claim about arbitrary repositories. Verification isolation is

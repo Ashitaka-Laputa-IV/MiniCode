@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from minicode.evals.trace import Trace, read_trace
 
 
@@ -61,6 +63,45 @@ def test_trace_sink_adapter() -> None:
 
 def test_read_missing_trace_is_empty(tmp_path: Path) -> None:
     assert read_trace(tmp_path / "missing.jsonl") == []
+
+
+def test_read_trace_ignores_truncated_final_line(tmp_path: Path) -> None:
+    path = tmp_path / "trace.jsonl"
+    path.write_text(
+        '{"type": "usage", "time": 1.0, "data": {"input_tokens": 100}}\n'
+        '{"type": "tool_call", "time": 2.0, "data": {"name": "execute"',
+        encoding="utf-8",
+    )
+
+    events = read_trace(path)
+
+    assert len(events) == 1
+    assert events[0].type == "usage"
+    assert events[0].data == {"input_tokens": 100}
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("pytest -q", True),
+        ("uv run pytest -q", True),
+        ("python -m pytest", True),
+        ("python -m unittest discover", True),
+        ("npm test", True),
+        ("npm run test", True),
+        ("make test", True),
+        ("echo pytest", False),
+        ("pytest --version", False),
+        ("pip install pytest", False),
+        ("uv run ruff check .", False),
+        ("cargo test --no-run", False),
+    ],
+)
+def test_ran_tests_detection(command: str, expected: bool) -> None:
+    trace = Trace()
+    trace.record("tool_call", name="execute", args={"command": command})
+
+    assert trace.summary()["ran_tests"] is expected
 
 
 def test_summary_of_empty_trace() -> None:
