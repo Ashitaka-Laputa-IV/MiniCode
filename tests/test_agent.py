@@ -10,12 +10,14 @@ from minicode.agent import (
     DEFAULT_CHECKPOINT_DB,
     DEFAULT_MODEL,
     build_agent,
+    permission_hint,
     resolve_db_path,
     resolve_model,
     resolve_root,
     shell_env,
     shell_hint,
 )
+from minicode.policy import PermissionMode
 
 
 def test_resolve_model_default(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -201,3 +203,36 @@ def test_shell_hint_matches_platform() -> None:
         assert "cmd.exe" in hint
     else:
         assert "POSIX" in hint
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [
+        (PermissionMode.READ_ONLY, ("read-only", "denied")),
+        (PermissionMode.ASK, ("ask", "approval", "rejected")),
+        (PermissionMode.YOLO, ("yolo", "deny-list", "explicitly asks")),
+    ],
+)
+def test_permission_hint_matches_mode(mode: PermissionMode, expected: tuple[str, ...]) -> None:
+    hint = permission_hint(mode)
+    for text in expected:
+        assert text in hint
+
+
+@pytest.mark.parametrize("mode", list(PermissionMode))
+def test_build_agent_prompt_matches_permission_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: PermissionMode
+) -> None:
+    captured: dict = {}
+
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("minicode.agent.create_deep_agent", fake_create)
+    build_agent(root=tmp_path, permission_mode=mode)
+
+    prompt = captured["system_prompt"]
+    assert permission_hint(mode) in prompt
+    assert "{permissions}" not in prompt
+    assert "run without confirmation" not in prompt

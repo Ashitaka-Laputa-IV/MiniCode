@@ -74,9 +74,9 @@ paths for shell commands. {shell}
 Read files before changing them. Make focused changes. Run the project's tests,
 lint, or build commands when they exist.
 
-Destructive and irreversible shell commands run without confirmation. Only run
-them when the user explicitly asks. When finished, summarize what changed and
-what you verified.
+{permissions}
+
+When finished, summarize what changed and what you verified.
 """
 
 
@@ -87,6 +87,29 @@ def shell_hint() -> str:
             "not POSIX sh syntax."
         )
     return "The shell is POSIX sh: use POSIX syntax and $VAR expansion."
+
+
+def permission_hint(mode: str | PermissionMode) -> str:
+    """Return prompt text describing the active permission mode."""
+    parsed = PermissionMode.parse(mode)
+    if parsed == PermissionMode.READ_ONLY:
+        return (
+            "Permission mode is read-only: file writes/deletes and non-safe shell "
+            "commands are denied. Do not attempt changes; explain the block or "
+            "propose a read-only alternative."
+        )
+    if parsed == PermissionMode.ASK:
+        return (
+            "Permission mode is ask: file writes/deletes and risky shell commands "
+            "require user approval; safe read-only commands run directly. If an "
+            "action is rejected, do not retry it; explain the limitation or "
+            "propose a safe alternative."
+        )
+    return (
+        "Permission mode is yolo: approval prompts are skipped, but catastrophic "
+        "commands on the hard deny-list are still blocked. Avoid destructive or "
+        "irreversible actions unless the user explicitly asks."
+    )
 
 
 def resolve_model(model: str | None = None) -> str:
@@ -186,7 +209,10 @@ def build_agent(
     try:
         return create_deep_agent(
             model=model_name,
-            system_prompt=SYSTEM_PROMPT.format(shell=shell_hint()),
+            system_prompt=SYSTEM_PROMPT.format(
+                shell=shell_hint(),
+                permissions=permission_hint(mode),
+            ),
             backend=backend,
             interrupt_on=interrupt_on,
             debug=debug,
