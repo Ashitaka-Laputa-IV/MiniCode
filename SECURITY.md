@@ -58,8 +58,8 @@ Out of scope:
 - vulnerabilities in third-party dependencies; report those upstream and we can
   track the fix
 - how a model provider stores or processes prompts and responses
-- prompt injection that only causes actions the active permission policy already
-  allows
+- prompt injection that does not bypass a control, expose secrets, or cause host
+  compromise
 
 ## Threat model
 
