@@ -2,9 +2,18 @@
 
 [![CI](https://github.com/Ashitaka-Laputa-IV/MiniCode/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/Ashitaka-Laputa-IV/MiniCode/actions/workflows/ci.yml)
 
+English | [简体中文](README.zh-CN.md)
+
 Minimal coding agent built on the [Deep Agents](https://docs.langchain.com/oss/python/deepagents/overview) harness.
 
 It runs a task or an interactive session against a workspace using the harness's filesystem tools, shell execution, planning, and subagents.
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Permissions and adding tools](docs/permissions.md)
+- [Chinese documentation](README.zh-CN.md)
+- [Security policy](SECURITY.md)
 
 ## Requirements
 
@@ -163,6 +172,9 @@ from the shell environment; the `.env` loader intentionally applies only the
 model and provider keys. `--shell-allow-list` also accepts `recommended` or
 `all`.
 
+For the full decision order, HITL behavior, and a checklist for adding tools,
+see [`docs/permissions.md`](docs/permissions.md).
+
 ## Safety
 
 The agent uses `PolicyShellBackend`, which wraps `LocalShellBackend`: it can
@@ -174,6 +186,9 @@ untrusted code.
 Shell commands receive a filtered environment: common OS/PATH/temp variables
 plus Python and uv paths. Provider API keys are not inherited by the agent's
 shell commands.
+
+See [`SECURITY.md`](SECURITY.md) for the threat model, known limitations, and
+reporting process.
 
 ## Project tooling
 
