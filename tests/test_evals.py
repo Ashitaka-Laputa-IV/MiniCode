@@ -158,6 +158,7 @@ def test_summarize_pass_at_k_and_trace_metrics() -> None:
 
     assert summary["tasks"] == 2
     assert summary["runs"] == 4
+    assert summary["passed_tasks"] == 1
     assert summary["pass_at_1"] == 0.5
     assert summary["pass_at_k"] == 0.5
     assert summary["avg_approvals"] == 0.75
@@ -196,6 +197,13 @@ def test_run_task_classifies_permission_denied(
     )
 
     assert result["failure_reason"] == "permission_denied"
+
+
+def test_run_suite_rejects_non_positive_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(runner, "load_suite", lambda suite: [])
+
+    with pytest.raises(ValueError, match="runs must be at least 1"):
+        runner.run_suite(suite="smoke", model=None, baselines=["full"], runs=0)
 
 
 def test_run_suite_repeats_each_task(monkeypatch: pytest.MonkeyPatch) -> None:

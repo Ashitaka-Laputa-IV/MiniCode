@@ -15,9 +15,6 @@ from typing import Any, TextIO
 
 TEST_COMMAND_MARKERS = (
     "pytest",
-    "ruff",
-    "mypy",
-    "compileall",
     "unittest",
     "npm test",
     "cargo test",

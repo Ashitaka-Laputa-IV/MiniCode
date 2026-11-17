@@ -142,6 +142,17 @@ def test_main_matrix_and_runs(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls["runs"] == 2
 
 
+def test_main_runs_two_all_passed(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = make_report(4, 2)
+    report["runs"] = 2
+    report["baselines"]["full"]["runs"] = 4
+
+    code, calls = run_main(monkeypatch, report, ["--runs", "2"])
+
+    assert code == 0
+    assert calls["runs"] == 2
+
+
 def test_main_rejects_non_positive_runs(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cli, "load_env", lambda: None)
 

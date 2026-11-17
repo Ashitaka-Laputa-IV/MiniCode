@@ -56,3 +56,10 @@ def test_summary_of_empty_trace() -> None:
     assert summary["events"] == 0
     assert summary["tool_calls"] == 0
     assert summary["repeated_tool_calls"] is False
+
+
+def test_lint_does_not_count_as_running_tests() -> None:
+    trace = Trace()
+    trace.record("tool_call", name="execute", args={"command": "uv run ruff check ."})
+
+    assert trace.summary()["ran_tests"] is False

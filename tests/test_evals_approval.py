@@ -10,12 +10,31 @@ def test_workspace_file_changes_are_approved(path: str) -> None:
     assert decision == "approve"
 
 
-@pytest.mark.parametrize("path", ["/.env", ".env.local", "/.git/config", ".git/hooks/pre-commit"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/.env",
+        "./.env",
+        "sub/.env",
+        ".env.local",
+        "/.git/config",
+        ".git/hooks/pre-commit",
+        "/tmp/x/.git/config",
+    ],
+)
 def test_protected_paths_are_rejected(path: str) -> None:
     decision, reason = decide({"name": "edit_file", "args": {"file_path": path}})
 
     assert decision == "reject"
     assert "protected path" in reason
+
+
+@pytest.mark.parametrize("path", ["../.env", "sub/../.env", "../../.git/config"])
+def test_escaping_paths_are_rejected(path: str) -> None:
+    decision, reason = decide({"name": "write_file", "args": {"file_path": path}})
+
+    assert decision == "reject"
+    assert "escaping file path" in reason
 
 
 def test_delete_of_workspace_file_is_approved() -> None:

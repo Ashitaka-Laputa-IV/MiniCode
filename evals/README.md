@@ -105,9 +105,10 @@ Failure categories currently include `timeout`, `tool_limit`,
 classified without task-level expected-path metadata; those failures fall back
 to `verification_failed`.
 
-Each run writes a temporary `trace.jsonl` next to its workspace. Traces are for
-evals only and are kept only with `--keep`; reports contain summaries, not raw
-tool output. Do not put secrets in fixture files.
+MiniCode and `deepagents-default` runs write a temporary `trace.jsonl` next to
+their workspace; `bare` runs do not. Traces are for evals only and are kept only
+with `--keep`; reports contain summaries, not raw tool output. Do not put
+secrets in fixture files.
 
 Update `pricing.toml` when provider prices change.
 

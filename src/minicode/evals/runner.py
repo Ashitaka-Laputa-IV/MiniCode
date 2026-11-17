@@ -410,6 +410,7 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
         "runs": len(results),
         "runs_per_task": round(len(results) / len(grouped), 2),
         "passed": passed,
+        "passed_tasks": sum(1 for flags in grouped.values() if any(flags)),
         "pass_at_1": round(sum(passes) / len(passes), 4),
         "pass_at_1_std": round(pstdev(passes), 4) if len(passes) > 1 else 0.0,
         "pass_at_k": pass_k,
@@ -440,6 +441,8 @@ def run_suite(
     runs: int = 1,
     keep: bool = False,
 ) -> dict[str, Any]:
+    if runs < 1:
+        raise ValueError("runs must be at least 1")
     tasks = load_suite(suite)
     if task_ids:
         wanted = set(task_ids)
@@ -449,7 +452,7 @@ def run_suite(
             raise ValueError(f"unknown task(s): {', '.join(sorted(missing))}")
 
     selected = resolve_baselines(baselines)
-    run_count = max(1, runs)
+    run_count = runs
     pricing = load_pricing()
     started_at = datetime.now().astimezone().isoformat(timespec="seconds")
     work_root = Path(tempfile.mkdtemp(prefix="minicode-evals-"))
@@ -527,9 +530,10 @@ def print_report(report: dict[str, Any]) -> None:
         if not summary:
             console.print(f"[bold]{baseline}[/] no tasks")
             continue
+        runs = summary.get("runs", summary["tasks"])
         console.print(
             f"[bold]{baseline}[/] pass@1 "
-            f"{summary['passed']}/{summary['tasks']} "
+            f"{summary['passed']}/{runs} "
             f"({summary['pass_at_1']:.0%}), "
             f"pass@{summary.get('runs_per_task', 1):g} "
             f"({summary.get('pass_at_k', summary['pass_at_1']):.0%}), "

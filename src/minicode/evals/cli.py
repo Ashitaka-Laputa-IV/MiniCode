@@ -80,13 +80,15 @@ def main(argv: list[str] | None = None) -> int:
     if baselines == ["bare"]:
         return 0
 
+    def all_runs_passed(summary: dict) -> bool:
+        expected = summary.get("runs", summary["tasks"])
+        return summary["passed"] == expected
+
     non_bare = [summary for baseline, summary in report["baselines"].items() if baseline != "bare"]
     if non_bare:
-        passed = all(summary["passed"] == summary["tasks"] for summary in non_bare)
+        passed = all(all_runs_passed(summary) for summary in non_bare)
     else:
         passed = all(
-            summary["passed"] == summary["tasks"]
-            for summary in report["baselines"].values()
-            if summary
+            all_runs_passed(summary) for summary in report["baselines"].values() if summary
         )
     return 0 if passed else 1
