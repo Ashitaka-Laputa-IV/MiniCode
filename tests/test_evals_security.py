@@ -76,6 +76,7 @@ def test_allowed_case_passes_and_writes_canary_fixture(
     assert result["passed"] is True
     assert result["secret_leak"] is False
     assert "CANARY_SECRET_VALUE" not in json.dumps(result)
+    assert (tmp_path / "case-0" / "workspace" / ".git" / "config").exists()
 
 
 def test_policy_block_and_hitl_rejection_pass_blocked_cases(
@@ -190,6 +191,58 @@ def test_canary_leak_is_detected_and_does_not_enter_result(
     assert "CANARY_SECRET_VALUE" not in json.dumps(result)
 
 
+def test_error_canary_is_detected_and_redacted(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def fake_worker(task, workspace, model, baseline, *, trace_file=None, **kwargs):
+        write_trace(trace_file, [])
+        return (
+            {
+                "ok": False,
+                "tool_calls": 0,
+                "usage": {},
+                "duration_s": 0.1,
+                "error": "RuntimeError: tool output: CANARY_SECRET_VALUE",
+                "trace_summary": {},
+            },
+            "",
+        )
+
+    monkeypatch.setattr(security, "run_worker", fake_worker)
+    result = run_security_case(
+        make_case("blocked"), work_root=tmp_path, model=None, canary="CANARY_SECRET_VALUE"
+    )
+
+    assert result["outcome"] == "leaked"
+    assert result["secret_leak"] is True
+    assert result["passed"] is False
+    assert result["error"] == "RuntimeError: tool output: [REDACTED_CANARY]"
+    assert "CANARY_SECRET_VALUE" not in json.dumps(result)
+
+
+def test_suite_exception_canary_is_redacted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case = make_case("blocked")
+    canary = "MINICODE_CANARY_CANARY_SECRET_VALUE"
+    monkeypatch.setattr(security, "load_security_suite", lambda: [case])
+    monkeypatch.setattr(security.secrets, "token_urlsafe", lambda _: "CANARY_SECRET_VALUE")
+
+    def boom(*args, **kwargs):
+        raise RuntimeError(f"tool output: {canary}")
+
+    monkeypatch.setattr(security, "run_security_case", boom)
+    report = security.run_security_suite(model=None, runs=1, keep=False)
+
+    result = report["cases"][0]
+    assert result["outcome"] == "leaked"
+    assert result["secret_leak"] is True
+    assert result["passed"] is False
+    assert result["error"] == "RuntimeError: tool output: [REDACTED_CANARY]"
+    assert canary not in json.dumps(result)
+    assert report["summary"]["secret_leaks"] == 1
+
+
 def test_refused_and_error_outcomes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         security,
@@ -295,6 +348,39 @@ def test_summarize_security_metrics() -> None:
     assert summary["policy_blocks"] == 1
     assert summary["hitl_rejections"] == 1
     assert summary["synthetic_approvals"] == 1
+    assert summary["canary_cases"] == 3
+    assert summary["canary_leak_rate"] == 0.0
+
+
+def test_canary_leak_rate_counts_all_workspaces() -> None:
+    base = {
+        "passed": False,
+        "policy_blocks": 0,
+        "hitl_rejections": 0,
+        "approvals": 0,
+        "cost_usd": 0.0,
+        "duration_s": 0.0,
+    }
+    results = [
+        {
+            **base,
+            "expect": "blocked",
+            "outcome": "leaked",
+            "secret_leak": True,
+        },
+        {
+            **base,
+            "expect": "allowed",
+            "outcome": "allowed",
+            "secret_leak": False,
+            "passed": True,
+        },
+    ]
+
+    summary = security.summarize_security(results)
+
+    assert summary["canary_cases"] == 2
+    assert summary["canary_leak_rate"] == 0.5
 
 
 def test_run_security_suite_filters_and_reports(
