@@ -49,6 +49,7 @@ class Task:
     hidden_tests: Path | None
     verify_command: str | None
     verify_script: Path | None
+    expected_paths: tuple[str, ...] = ()
 
 
 def load_task(path: Path) -> Task:
@@ -68,6 +69,7 @@ def load_task(path: Path) -> Task:
         hidden_tests=(path / str(hidden)) if hidden else None,
         verify_command=(str(data["verify_command"]) if "verify_command" in data else None),
         verify_script=(path / str(verify_script)) if verify_script else None,
+        expected_paths=tuple(str(item) for item in data.get("expected_paths", [])),
     )
 
 
@@ -404,6 +406,8 @@ def run_task(
         "worker_output": worker_output[-1000:],
         "final": str(worker.get("final", ""))[:4000],
         "trace_summary": trace_summary,
+        "expected_paths": list(task.expected_paths),
+        "changed_paths": list(trace_summary.get("touched_paths") or []),
     }
     result["failure_reason"] = classify_failure(result, trace_summary)
     if not passed and not result["error"]:
@@ -435,31 +439,46 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
                 usage[key] += int(value)
 
     traces = [result.get("trace_summary") or {} for result in results]
+    traced = [trace for trace in traces if trace]
+    trace_runs = len(traced)
     passed = sum(1 for result in results if result["passed"])
+    total_cost = sum(result["cost_usd"] for result in results)
+    total_duration = sum(result["duration_s"] for result in results)
     return {
         "tasks": len(grouped),
         "runs": len(results),
         "runs_per_task": round(len(results) / len(grouped), 2),
         "passed": passed,
         "passed_tasks": sum(1 for flags in grouped.values() if any(flags)),
+        "task_pass_counts": {task_id: sum(flags) for task_id, flags in sorted(grouped.items())},
         "pass_at_1": round(sum(passes) / len(passes), 4),
         "pass_at_1_std": round(pstdev(passes), 4) if len(passes) > 1 else 0.0,
         "pass_at_k": pass_k,
         "pass_at_k_std": pass_k_std,
         "avg_tool_calls": round(sum(result["tool_calls"] for result in results) / len(results), 2),
-        "avg_approvals": round(
-            sum(int(trace.get("approvals", 0)) for trace in traces) / len(results), 2
+        "avg_approvals": (
+            round(sum(int(trace.get("approvals", 0)) for trace in traced) / trace_runs, 2)
+            if trace_runs
+            else None
         ),
-        "avg_blocked": round(
-            sum(int(trace.get("blocked", 0)) for trace in traces) / len(results), 2
+        "avg_blocked": (
+            round(sum(int(trace.get("blocked", 0)) for trace in traced) / trace_runs, 2)
+            if trace_runs
+            else None
         ),
+        "trace_runs": trace_runs,
         "failure_counts": failure_counts(results),
         "input_tokens": usage["input_tokens"],
         "output_tokens": usage["output_tokens"],
         "cached_input_tokens": usage["cached_input_tokens"],
         "total_tokens": usage["total_tokens"],
-        "cost_usd": round(sum(result["cost_usd"] for result in results), 6),
-        "wall_time_s": round(sum(result["duration_s"] for result in results), 2),
+        "avg_input_tokens": round(usage["input_tokens"] / len(results), 2),
+        "avg_output_tokens": round(usage["output_tokens"] / len(results), 2),
+        "avg_total_tokens": round(usage["total_tokens"] / len(results), 2),
+        "cost_usd": round(total_cost, 6),
+        "avg_cost_usd": round(total_cost / len(results), 6),
+        "wall_time_s": round(total_duration, 2),
+        "avg_duration_s": round(total_duration / len(results), 2),
     }
 
 
@@ -562,6 +581,10 @@ def print_report(report: dict[str, Any]) -> None:
             console.print(f"[bold]{baseline}[/] no tasks")
             continue
         runs = summary.get("runs", summary["tasks"])
+        approvals = summary.get("avg_approvals")
+        blocked = summary.get("avg_blocked")
+        approval_text = "n/a" if approvals is None else f"{approvals}"
+        blocked_text = "n/a" if blocked is None else f"{blocked}"
         console.print(
             f"[bold]{baseline}[/] pass@1 "
             f"{summary['passed']}/{runs} "
@@ -569,8 +592,8 @@ def print_report(report: dict[str, Any]) -> None:
             f"pass@{summary.get('runs_per_task', 1):g} "
             f"({summary.get('pass_at_k', summary['pass_at_1']):.0%}), "
             f"{summary['avg_tool_calls']} calls/task, "
-            f"approvals {summary.get('avg_approvals', 0)}, "
-            f"blocked {summary.get('avg_blocked', 0)}, "
+            f"approvals {approval_text}, "
+            f"blocked {blocked_text}, "
             f"${summary['cost_usd']:.4f}, "
             f"{summary['wall_time_s']:.1f}s"
         )

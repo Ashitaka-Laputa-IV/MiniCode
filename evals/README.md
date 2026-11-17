@@ -86,6 +86,7 @@ max_tool_calls = 30
 hidden_tests = "hidden"          # optional
 verify_command = "python -m pytest -q"  # optional; this is the default
 # verify_script = "verify.py"    # alternative to verify_command
+expected_paths = ["src/app.py"]  # optional; enables wrong_files classification
 ```
 
 Rules:
@@ -106,19 +107,26 @@ Rules:
 - `pass_at_1`: pass rate across all runs
 - `pass_at_k`: fraction of tasks with at least one pass in `k` runs
 - `pass_at_1_std` / `pass_at_k_std`: population standard deviation
-- `tool_calls`: count of model tool calls
-- `avg_approvals`: average approval events per run
-- `avg_blocked`: average policy denials per run
+- `passed_tasks` / `task_pass_counts`: tasks with at least one pass and per-task pass counts
+- `avg_tool_calls`: average tool calls per run
+- `avg_approvals` / `avg_blocked`: average approval events and policy denials per
+  traced run; `null` when the baseline writes no trace (for example `bare`)
+- `trace_runs`: runs with a trace summary
 - `failure_counts`: deterministic failure classification counts
-- `input_tokens` / `output_tokens`: summed provider usage
-- `cost_usd`: computed from `evals/pricing.toml`
-- `duration_s`: wall-clock time per task
+- `input_tokens` / `output_tokens` / `total_tokens`: summed provider usage
+- `avg_input_tokens` / `avg_output_tokens` / `avg_total_tokens`: per-run averages
+- `cost_usd` / `avg_cost_usd`: summed and per-run estimated cost from
+  `evals/pricing.toml`
+- `wall_time_s` / `avg_duration_s`: summed and per-run wall-clock time
 
 Failure categories currently include `timeout`, `tool_limit`,
-`permission_denied`, `loop`, `no_tests_run`, `context_overflow`,
-`verification_failed`, and `agent_error`. `wrong_files` is intentionally not
-classified without task-level expected-path metadata; those failures fall back
-to `verification_failed`.
+`permission_denied`, `agent_error`, `wrong_files`, `loop`, `no_tests_run`,
+`context_overflow`, and `verification_failed`. `wrong_files` is only emitted
+when `task.toml` declares `expected_paths` and the trace shows a write, edit, or
+delete outside that set; tasks without the field fall back to
+`verification_failed`. The remaining categories are mutually exclusive and
+deterministic. Secret-leak and recovery metrics are reported by their separate
+suites, not by smoke results.
 
 MiniCode and `deepagents-default` runs write a temporary `trace.jsonl` next to
 their workspace; `bare` runs do not. Traces are for evals only and are kept only
