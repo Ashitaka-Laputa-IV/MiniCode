@@ -142,11 +142,20 @@ def test_main_matrix_and_runs(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls["runs"] == 2
 
 
-def test_main_empty_summary_does_not_crash(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_main_empty_summary_fails_for_non_bare(monkeypatch: pytest.MonkeyPatch) -> None:
     report = make_report(0, 0)
     report["baselines"]["full"] = {}
 
     code, _ = run_main(monkeypatch, report)
+
+    assert code == 1
+
+
+def test_main_empty_summary_is_zero_for_bare(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = make_report(0, 0, baseline="bare")
+    report["baselines"]["bare"] = {}
+
+    code, _ = run_main(monkeypatch, report, ["--baseline", "bare"])
 
     assert code == 0
 

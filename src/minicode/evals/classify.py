@@ -57,6 +57,8 @@ def classify_failure(result: dict[str, Any], trace: dict[str, Any] | None = None
         return "permission_denied"
     if trace.get("repeated_tool_calls"):
         return "loop"
+    if verify_output.strip().startswith("verification error:"):
+        return "verification_failed"
     if trace.get("ran_tests") is False:
         return "no_tests_run"
     return "verification_failed"

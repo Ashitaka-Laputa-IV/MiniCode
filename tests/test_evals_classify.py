@@ -73,6 +73,16 @@ def test_no_tests_run() -> None:
     assert classify_failure(result(), {"ran_tests": False}) == "no_tests_run"
 
 
+def test_verification_error_beats_no_tests_run() -> None:
+    assert (
+        classify_failure(
+            result(verify_output="verification error: verify crashed"),
+            {"ran_tests": False},
+        )
+        == "verification_failed"
+    )
+
+
 def test_verification_failed() -> None:
     assert classify_failure(result(), {"ran_tests": True}) == "verification_failed"
 

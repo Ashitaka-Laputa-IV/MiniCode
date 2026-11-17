@@ -81,7 +81,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     def all_runs_passed(summary: dict) -> bool:
+        if not summary:
+            return False
         expected = summary.get("runs", summary.get("tasks", 0))
+        if expected <= 0:
+            return False
         return summary.get("passed", 0) == expected
 
     non_bare = [summary for baseline, summary in report["baselines"].items() if baseline != "bare"]

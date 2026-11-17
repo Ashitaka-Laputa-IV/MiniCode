@@ -13,7 +13,16 @@ PATH_COMMANDS = {"cp", "mv", "touch", "mkdir"}
 GLOB_CHARS = frozenset("*?[]{}")
 WINDOWS_INVALID_PATH_CHARS = frozenset('<>:"|?*')
 SHORT_NAME_RE = re.compile(r"~\d+")
-RECURSIVE_LONG_OPTIONS = frozenset({"--archive", "--recursive"})
+UNSAFE_LONG_OPTIONS = frozenset(
+    {
+        "--archive",
+        "--recursive",
+        "--dereference",
+        "--no-dereference",
+        "--symbolic-link",
+        "--link",
+    }
+)
 PATH_SHORT_FLAGS = {
     # -a, -r, and -R are intentionally omitted: recursive copies can bypass
     # checks for protected files inside the source directory. Symlink-related
@@ -114,8 +123,8 @@ def _long_option_allowed(command_name: str, token: str) -> bool:
         return True
     option = token.split("=", 1)[0].casefold()
     # Long options may be abbreviated by GNU tools, so reject any prefix of
-    # --archive/--recursive as well as the full spelling.
-    return not any(full.startswith(option) for full in RECURSIVE_LONG_OPTIONS)
+    # recursive or symlink-following options as well as the full spelling.
+    return not any(full.startswith(option) for full in UNSAFE_LONG_OPTIONS)
 
 
 def _command_path_allowed(value: str) -> bool:
@@ -139,7 +148,7 @@ def _path_tokens_allowed(
         if not end_options and token.startswith("-") and token != "-":
             if token.startswith("--"):
                 if not _long_option_allowed(command_name, token):
-                    return False, f"recursive command option is not allowed: {token}"
+                    return False, f"unsafe command option is not allowed: {token}"
                 if "=" in token:
                     value = token.split("=", 1)[1]
                     if value and not _command_path_allowed(value):
@@ -166,7 +175,7 @@ def _path_tokens_allowed(
         if not end_options and raw.startswith("-") and raw != "-":
             if raw.startswith("--"):
                 if not _long_option_allowed(command_name, raw):
-                    return False, f"recursive command option is not allowed: {raw}"
+                    return False, f"unsafe command option is not allowed: {raw}"
                 if "=" in raw:
                     value = _strip_quotes(raw.split("=", 1)[1])
                     if value and not _command_path_allowed(value):
