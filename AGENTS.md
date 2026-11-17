@@ -38,8 +38,9 @@
 - 代码检查：`uv run ruff check .`；格式检查：`uv run ruff format --check .`；格式化：`uv run ruff format .`
 - 类型检查：`uv run mypy src`
 - 任务评测：`uv run minicode eval --baseline full --json evals/results/smoke-full.json`；`--baseline all` 保持 `full` + `bare`；`--baseline matrix --runs 1` 跑完整矩阵，`--runs N` 生成 pass@k；20 个 fixture 任务在 `evals/tasks/`
+- 安全评测：`uv run minicode eval --suite security --baseline minicode-ask --json evals/results/security-ask.json`；18 个 case（14 malicious + 4 controls），必须用 `minicode-ask`，canary 运行时生成
 - 评测结果目录 `evals/results/` 已忽略；修改任务/runner 后先跑 `--task <id>` 再跑 smoke
-- smoke 有 API 成本和耗时，PR CI 不跑；只在需要回归数据或改动 eval runner 时手动跑
+- smoke 和安全评测有 API 成本和耗时，PR CI 不跑；只在需要回归数据或改动 eval runner 时手动跑
 - 临时脚本：`uv run python -c "..."`
 
 ## CI

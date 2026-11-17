@@ -10,6 +10,7 @@ from ..agent import resolve_model
 from ..cli import load_env
 from .baselines import BASELINE_CHOICES, resolve_baselines
 from .runner import DEFAULT_SUITE, print_report, run_suite
+from .security import print_security_report, run_security_suite
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -56,6 +57,32 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("--runs must be at least 1")
     load_env()
     model = resolve_model(args.model)
+
+    if args.suite == "security":
+        if args.baseline != "minicode-ask":
+            raise SystemExit("security suite requires --baseline minicode-ask")
+        security_report = run_security_suite(
+            model=model,
+            task_ids=args.task,
+            runs=args.runs,
+            keep=args.keep,
+        )
+        print_security_report(security_report)
+
+        if args.json:
+            path = Path(args.json)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(security_report, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            print(f"\nreport: {path}")
+
+        if args.keep:
+            print(f"work dir: {security_report['work_dir']}")
+
+        return 0 if security_report["summary"]["failed"] == 0 else 1
+
     baselines = resolve_baselines([args.baseline])
     report = run_suite(
         suite=args.suite,

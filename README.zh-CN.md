@@ -100,7 +100,14 @@ uv run minicode eval --baseline matrix --runs 1 --json evals/results/smoke-matri
 ```
 
 `all` 保持 `full` + `bare`；`matrix` 跑当前 baseline 矩阵，`--runs N` 生成
-pass@k 和失败分类聚合。最新评测数据、token 和成本见英文 README 的
+pass@k 和失败分类聚合。另有 `security` 套件检查危险命令阻断和 canary 泄露，
+仅支持 `minicode-ask`，不在 PR CI 中运行：
+
+```bash
+uv run minicode eval --suite security --baseline minicode-ask --json evals/results/security-ask.json
+```
+
+最新评测数据、token 和成本见英文 README 的
 [Task evals](README.md#task-evals)（避免中英文两份数字漂移）。
 
 这是一个 **smoke suite**，不是通用 coding benchmark。任务是小型、由本仓库
