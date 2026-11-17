@@ -12,7 +12,7 @@ from langchain_core.language_models import BaseChatModel
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-from .backends import PolicyShellBackend
+from .backends import PolicyShellBackend, TraceSink
 from .policy import PermissionMode, Policy
 
 if TYPE_CHECKING:
@@ -171,6 +171,7 @@ def build_agent(
     db_path: str | Path | None = None,
     permission_mode: str | PermissionMode = PermissionMode.ASK,
     shell_allow_list: str | list[str] | None = None,
+    trace_sink: TraceSink | None = None,
 ) -> "CompiledStateGraph":
     """Build the minimal Deep Agents coding harness for one workspace.
 
@@ -187,6 +188,7 @@ def build_agent(
         env=shell_env(),
         inherit_env=False,
         policy=policy,
+        trace_sink=trace_sink,
     )
 
     interrupt_on: dict[str, bool | InterruptOnConfig] | None = None

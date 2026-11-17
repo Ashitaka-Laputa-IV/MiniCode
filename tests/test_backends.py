@@ -71,3 +71,22 @@ def test_policy_backend_blocks_hard_deny_in_yolo(tmp_path: Path) -> None:
 
     assert result.exit_code == 126
     assert "hard deny-list" in result.output
+
+
+def test_policy_backend_emits_trace_events(tmp_path: Path) -> None:
+    events: list[tuple[str, dict]] = []
+    backend = PolicyShellBackend(
+        root_dir=tmp_path,
+        env={},
+        policy=Policy(PermissionMode.READ_ONLY),
+        trace_sink=lambda event, data: events.append((event, data)),
+    )
+
+    backend.execute("rm -rf /")
+    write = backend.write("blocked.txt", "hello")
+
+    assert [event for event, _ in events] == ["policy_decision", "policy_decision"]
+    assert events[0][1]["action"] == "DENY"
+    assert events[1][1]["tool"] == "write_file"
+    assert events[1][1]["action"] == "DENY"
+    assert write.error

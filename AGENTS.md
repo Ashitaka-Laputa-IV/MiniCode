@@ -28,7 +28,7 @@
 - 模型：`--model <provider:model>` 或环境变量 `MINICODE_MODEL`；默认 `deepseek:deepseek-flash`，需要 `DEEPSEEK_API_KEY`
 - 权限模式：`--permission-mode read-only|ask|yolo` 或 `MINICODE_PERMISSION_MODE`；默认 `ask`，非 TTY 下 gated action 会被拒绝
 - shell allow-list：`--shell-allow-list "git status,uv run pytest"` 或 `MINICODE_SHELL_ALLOW_LIST`；也支持 `recommended` / `all`
-- 权限策略是 guardrail，不是 sandbox；不可信任务仍需容器/VM。eval worker 在非交互环境显式使用 `yolo`
+- 权限策略是 guardrail，不是 sandbox；不可信任务仍需容器/VM。eval worker 按 baseline 配置权限：`minicode-yolo`/`full`/`minicode-no-checkpoint` 用 `yolo`，`minicode-ask` 用 `ask` + 脚本化审批，`deepagents-default` 不经过 `Policy`/HITL
 - 环境变量：CLI 自动加载当前目录或祖先目录的 `.env`，但只应用 `MINICODE_MODEL` 和已知 provider key，忽略 base URL/endpoint 类变量；shell 已有变量优先。`.env` 已被忽略，提交 `.env.example`，不要把真实 key 写入版本库
 - 添加依赖：`uv add <pkg>`；开发依赖：`uv add --dev <pkg>`
 - 更新锁文件：`uv lock`（升级用 `uv lock --upgrade`）
@@ -37,7 +37,7 @@
 - live 测试：`uv run pytest -m live -q`；默认 `pytest` 不跑，仅支持 DeepSeek，需要 `DEEPSEEK_API_KEY`，缺 key 会失败，有 API 成本
 - 代码检查：`uv run ruff check .`；格式检查：`uv run ruff format --check .`；格式化：`uv run ruff format .`
 - 类型检查：`uv run mypy src`
-- 任务评测：`uv run minicode eval --baseline full --json evals/results/smoke-full.json`；`--baseline all` 同时跑 `bare`；20 个 fixture 任务在 `evals/tasks/`
+- 任务评测：`uv run minicode eval --baseline full --json evals/results/smoke-full.json`；`--baseline all` 保持 `full` + `bare`；`--baseline matrix --runs 1` 跑完整矩阵，`--runs N` 生成 pass@k；20 个 fixture 任务在 `evals/tasks/`
 - 评测结果目录 `evals/results/` 已忽略；修改任务/runner 后先跑 `--task <id>` 再跑 smoke
 - smoke 有 API 成本和耗时，PR CI 不跑；只在需要回归数据或改动 eval runner 时手动跑
 - 临时脚本：`uv run python -c "..."`

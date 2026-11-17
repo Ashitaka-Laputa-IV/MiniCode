@@ -130,7 +130,7 @@ sequenceDiagram
 | 单次任务 + `read-only` / `yolo` | 无 | 不需要跨轮恢复 |
 | 单次任务 + `ask` | `InMemorySaver` | 支撑本轮内的 approve/reject |
 | REPL | `SqliteSaver` | 默认 `<workspace>/.minicode/checkpoints.sqlite` |
-| 评测 worker | 无 | 每个任务独立 fixture |
+| 评测 worker | 按 baseline | `minicode-yolo` / `full` / `minicode-ask` 使用 `SqliteSaver`；`minicode-no-checkpoint`、`deepagents-default`、`bare` 无 |
 
 SQLite 数据库包含对话和工具输出，属于敏感数据；`.minicode/` 和 `*.sqlite*`
 已在 `.gitignore` 中。并行 REPL 要使用不同的 `--thread` 和 `--db`，否则可能
@@ -141,23 +141,25 @@ SQLite 数据库包含对话和工具输出，属于敏感数据；`.minicode/` 
 ```mermaid
 flowchart TD
     T["task.toml / prompt.md"] --> COPY["复制 fixture 到临时目录"]
-    COPY --> W["worker 子进程<br/>MiniCode + yolo"]
+    COPY --> W["worker 子进程<br/>baseline 配置的 agent"]
     W --> OK{"worker 成功？"}
     OK -->|否| FAIL["标记失败"]
     OK -->|是| HIDDEN["复制 hidden tests<br/>到 workspace 外"]
     HIDDEN --> V["verify 子进程<br/>过滤 provider key"]
-    V --> REPORT["报告 pass / tool calls / tokens / cost"]
+    V --> REPORT["报告 pass@k / failure counts<br/>tool calls / tokens / cost"]
 ```
 
 实际代码在 [`src/minicode/evals/runner.py`](../src/minicode/evals/runner.py)：
 
-- worker 在独立子进程中运行 `build_agent(..., permission_mode="yolo")`。
+- worker 在独立子进程中运行 baseline 配置的 agent；MiniCode baseline 使用
+  `build_agent()`，`minicode-ask` 还会走脚本化审批，`deepagents-default`
+  使用原生 Deep Agents。
 - verify 使用 `verification_env()`，不继承 provider key，并把 fixture
   workspace 加入 `PYTHONPATH`。
 - hidden tests 被复制到 workspace 之外的 sibling 目录，使用
   `evals/pytest-safe.ini` 运行。
-- 退出码由 `evals/cli.py` 决定：单独跑 `bare` 时失败也返回 0，`full` / `all`
-  以非 bare 结果为准。
+- 退出码由 `evals/cli.py` 决定：单独跑 `bare` 时失败也返回 0，`full` /
+  `all` / `matrix` 以非 bare 结果为准。
 
 评测隔离是**约定级**的，不是对抗性 sandbox。详见
 [`evals/README.md`](../evals/README.md)。

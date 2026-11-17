@@ -232,6 +232,26 @@ def test_mode_hint_unknown_mode_is_conservative(monkeypatch: pytest.MonkeyPatch)
     assert "Do not modify files" in hint
 
 
+def test_build_agent_passes_trace_sink_to_backend(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict = {}
+
+    class FakeBackend:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr("minicode.agent.PolicyShellBackend", FakeBackend)
+    monkeypatch.setattr("minicode.agent.create_deep_agent", lambda **kwargs: object())
+
+    def sink(event: str, data: dict) -> None:
+        return None
+
+    build_agent(root=tmp_path, permission_mode="yolo", trace_sink=sink)
+
+    assert captured["trace_sink"] is sink
+
+
 @pytest.mark.parametrize("mode", list(PermissionMode))
 def test_build_agent_prompt_matches_permission_mode(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: PermissionMode
