@@ -85,6 +85,16 @@ uv run minicode --model deepseek:deepseek-reasoner "review this change"
 需要先安装对应 provider 的集成包，例如 `uv add langchain-anthropic` 或
 `uv add langchain-openai`。
 
+OpenCode Go 模型可以直接使用 `opencode-go:<model-id>` 和
+`OPENCODE_GO_API_KEY`：
+
+```bash
+uv run minicode --model opencode-go:deepseek-v4.1-flash "review this change"
+```
+
+该 provider 会发送必需的 `x-opencode-session` 请求头。设置
+`OPENCODE_GO_SESSION` 可以固定 session，否则 MiniCode 每个进程生成一个。
+
 如果模型输出 reasoning，MiniCode 会在工具调用和最终回答之前，以 dim
 `thinking` 块打印到 stderr。stdout 仍然只包含最终回答。用 `--no-thinking`
 关闭。

@@ -7,14 +7,17 @@ import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from minicode.agent import (
     DEFAULT_CHECKPOINT_DB,
     DEFAULT_MODEL,
+    OPENCODE_GO_BASE_URL,
     build_agent,
     mode_hint,
+    resolve_chat_model,
     resolve_db_path,
     resolve_model,
     resolve_root,
@@ -54,6 +57,47 @@ def test_resolve_model_whitespace_falls_back(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("MINICODE_MODEL", "   ")
     assert resolve_model() == DEFAULT_MODEL
     assert resolve_model("   ") == DEFAULT_MODEL
+
+
+def test_resolve_model_opencode_go(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENCODE_GO_API_KEY", "oc-test-key")
+    monkeypatch.setenv("OPENCODE_GO_SESSION", "session-123")
+
+    model = resolve_chat_model("opencode-go:deepseek-v4.1-flash")
+
+    assert isinstance(model, ChatOpenAI)
+    assert model.model_name == "deepseek-v4.1-flash"
+    assert model.openai_api_base == OPENCODE_GO_BASE_URL
+    assert model.default_headers == {
+        "x-opencode-session": "session-123",
+        "User-Agent": "minicode/0.1.0",
+    }
+    assert model.stream_usage is True
+
+
+def test_resolve_model_opencode_go_generates_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENCODE_GO_API_KEY", "oc-test-key")
+    monkeypatch.delenv("OPENCODE_GO_SESSION", raising=False)
+
+    model = resolve_chat_model("opencode-go:deepseek-v4.1-flash")
+
+    assert isinstance(model, ChatOpenAI)
+    assert model.default_headers is not None
+    assert model.default_headers["x-opencode-session"].startswith("minicode-")
+
+
+def test_resolve_model_opencode_go_requires_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENCODE_GO_API_KEY", raising=False)
+
+    with pytest.raises(ValueError, match="OPENCODE_GO_API_KEY"):
+        resolve_chat_model("opencode-go:deepseek-v4.1-flash")
+
+
+def test_resolve_model_opencode_go_requires_model_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENCODE_GO_API_KEY", "oc-test-key")
+
+    with pytest.raises(ValueError, match="model id"):
+        resolve_chat_model("opencode-go:")
 
 
 def test_resolve_root_missing(tmp_path: Path) -> None:

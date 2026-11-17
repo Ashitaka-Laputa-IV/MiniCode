@@ -307,6 +307,16 @@ def test_run_bare(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result["duration_s"] >= 0
 
 
+def test_run_bare_uses_resolved_chat_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    resolved = FakeModel()
+    monkeypatch.setattr(worker, "resolve_chat_model", lambda model: resolved)
+
+    result = worker.run_bare("prompt", "opencode-go:deepseek-v4.1-flash")
+
+    assert result["final"] == "answer"
+    assert result["usage"]["total_tokens"] == 4
+
+
 def test_worker_main_full(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     prompt = tmp_path / "prompt.md"
     prompt.write_text("task", encoding="utf-8")
@@ -770,3 +780,30 @@ def test_run_deepagents_default_builds_native_stack(
     assert "system_prompt" not in captured
     assert "interrupt_on" not in captured
     assert result["trace_summary"]["tool_calls"] == 0
+
+
+def test_run_deepagents_default_accepts_resolved_chat_model(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict = {}
+    resolved = FakeModel()
+
+    def fake_backend(**kwargs: Any):
+        return object()
+
+    def fake_create_deep_agent(**kwargs: Any):
+        captured.update(kwargs)
+        return FakeAgent([])
+
+    monkeypatch.setattr(worker, "resolve_chat_model", lambda model: resolved)
+    monkeypatch.setattr(worker, "LocalShellBackend", fake_backend)
+    monkeypatch.setattr(worker, "create_deep_agent", fake_create_deep_agent)
+
+    worker.run_deepagents_default(
+        "prompt",
+        tmp_path,
+        "opencode-go:deepseek-v4.1-flash",
+        5,
+    )
+
+    assert captured["model"] is resolved

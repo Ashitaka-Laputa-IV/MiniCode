@@ -88,6 +88,17 @@ uv run minicode --model deepseek:deepseek-reasoner "review this change"
 
 Install that provider's integration package first, for example `uv add langchain-anthropic` or `uv add langchain-openai`.
 
+OpenCode Go models are supported directly with `opencode-go:<model-id>` and
+`OPENCODE_GO_API_KEY`. For example:
+
+```bash
+uv run minicode --model opencode-go:deepseek-v4.1-flash "review this change"
+```
+
+The provider sends the required `x-opencode-session` header. Set
+`OPENCODE_GO_SESSION` to keep a stable session, or MiniCode generates one per
+process.
+
 When the selected model emits reasoning, MiniCode prints it to stderr as a dim
 `thinking` block before tool calls and the final answer. stdout still contains
 only the final answer. Use `--no-thinking` to suppress it.

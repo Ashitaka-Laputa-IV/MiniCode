@@ -313,6 +313,20 @@ def test_load_env_strips_whitespace(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert os.environ["DEEPSEEK_API_KEY"] == "sk-test"
 
 
+def test_load_env_accepts_opencode_go_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / ".env").write_text(
+        "OPENCODE_GO_API_KEY=oc-test\nOPENCODE_GO_SESSION=session-1\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("OPENCODE_GO_API_KEY", raising=False)
+    monkeypatch.delenv("OPENCODE_GO_SESSION", raising=False)
+
+    load_env()
+    assert os.environ["OPENCODE_GO_API_KEY"] == "oc-test"
+    assert os.environ["OPENCODE_GO_SESSION"] == "session-1"
+
+
 class FakeCheckpointer:
     def __init__(self) -> None:
         self.deleted: list[str] = []

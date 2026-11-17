@@ -5,12 +5,15 @@ import sqlite3
 from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 from deepagents import create_deep_agent
 from langchain.agents.middleware import InterruptOnConfig
 from langchain_core.language_models import BaseChatModel
+from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.sqlite import SqliteSaver
+from pydantic import SecretStr
 
 from .backends import PolicyShellBackend, TraceSink
 from .middleware import NoSubagentsMiddleware
@@ -21,6 +24,8 @@ if TYPE_CHECKING:
 
 DEFAULT_MODEL = "deepseek:deepseek-flash"
 DEFAULT_CHECKPOINT_DB = Path(".minicode") / "checkpoints.sqlite"
+OPENCODE_GO_BASE_URL = "https://opencode.ai/inference/go/openai/v1"
+OPENCODE_GO_USER_AGENT = "minicode/0.1.0"
 
 ModelInput = str | BaseChatModel | None
 
@@ -127,6 +132,30 @@ def resolve_model(model: str | None = None) -> str:
     return (model or "").strip() or os.getenv("MINICODE_MODEL", "").strip() or DEFAULT_MODEL
 
 
+def resolve_chat_model(model: str | None = None) -> str | BaseChatModel:
+    name = resolve_model(model)
+    prefix, separator, model_id = name.partition(":")
+    if separator and prefix == "opencode-go":
+        model_id = model_id.strip()
+        if not model_id:
+            raise ValueError("opencode-go model id is required after 'opencode-go:'")
+        api_key = os.getenv("OPENCODE_GO_API_KEY", "").strip()
+        if not api_key:
+            raise ValueError("OPENCODE_GO_API_KEY is required for opencode-go models")
+        session = os.getenv("OPENCODE_GO_SESSION", "").strip() or f"minicode-{uuid4().hex}"
+        return ChatOpenAI(
+            model=model_id,
+            base_url=OPENCODE_GO_BASE_URL,
+            api_key=SecretStr(api_key),
+            default_headers={
+                "x-opencode-session": session,
+                "User-Agent": OPENCODE_GO_USER_AGENT,
+            },
+            stream_usage=True,
+        )
+    return name
+
+
 def resolve_root(root: str | Path | None = None) -> Path:
     path = Path(root or Path.cwd()).expanduser().resolve()
     if not path.is_dir():
@@ -181,7 +210,7 @@ def build_agent(
     close it with :func:`close_checkpointer` when the agent is no longer used.
     """
     root_path = resolve_root(root)
-    model_name = model if isinstance(model, BaseChatModel) else resolve_model(model)
+    model_name = model if isinstance(model, BaseChatModel) else resolve_chat_model(model)
     mode = PermissionMode.parse(permission_mode)
     policy = Policy(mode, allow_commands=shell_allow_list)
 

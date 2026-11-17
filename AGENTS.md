@@ -25,7 +25,7 @@
 - REPL 会话持久化到 SQLite（默认 `<root>/.minicode/checkpoints.sqlite`）；`--db` 指定数据库文件，`--thread` 选择会话；失败/中断/`/reset` 会清空当前 thread
 - 默认 thread `default`；同一 workspace 并行 REPL 要显式用不同 `--thread`/`--db`，避免 `database is locked` 或 checkpoint 交错
 - `.minicode/` 和 `*.sqlite*` 已忽略；数据库包含对话和工具输出，不要提交
-- 模型：`--model <provider:model>` 或环境变量 `MINICODE_MODEL`；默认 `deepseek:deepseek-flash`，需要 `DEEPSEEK_API_KEY`
+- 模型：`--model <provider:model>` 或环境变量 `MINICODE_MODEL`；默认 `deepseek:deepseek-flash`，需要 `DEEPSEEK_API_KEY`；OpenCode Go 用 `--model opencode-go:deepseek-v4.1-flash`，需要 `OPENCODE_GO_API_KEY`，可选 `OPENCODE_GO_SESSION`
 - 权限模式：`--permission-mode read-only|ask|yolo` 或 `MINICODE_PERMISSION_MODE`；默认 `ask`，非 TTY 下 gated action 会被拒绝
 - shell allow-list：`--shell-allow-list "git status,uv run pytest"` 或 `MINICODE_SHELL_ALLOW_LIST`；也支持 `recommended` / `all`
 - 权限策略是 guardrail，不是 sandbox；不可信任务仍需容器/VM。eval worker 按 baseline 配置权限：`minicode-yolo`/`full`/`minicode-no-checkpoint`/`minicode-no-subagents` 用 `yolo`，`minicode-ask` 用 `ask` + 脚本化审批，`deepagents-default` 不经过 `Policy`/HITL
