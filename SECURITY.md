@@ -9,19 +9,23 @@ evaluation harness.
 
 | Version | Supported |
 | --- | --- |
-| `0.1.x` | Yes |
-| `< 0.1` | No |
+| `0.1.x` development line (`0.1.0` in `pyproject.toml`) | Yes |
+| Tagged releases | None yet |
+| Older commits | No |
 
 `main` and `dev` are development branches. Security fixes land on `dev` first
-and are merged to `main` when ready. Older commits are not supported.
+and are merged to `main` when ready. There are no tagged releases yet; use the
+latest `dev` or `main` commit. Older commits are not supported.
 
 ## Reporting a vulnerability
 
-Please report suspected vulnerabilities privately through GitHub's **Security**
-tab using **Report a vulnerability** (GitHub Security Advisories). Do not open a
-public issue for a security problem. If the private reporting form is not
-available, contact the repository owner through GitHub before disclosing details
-publicly.
+Do not open a public issue for a security problem.
+
+Email **Ashitaka-Laputa-IV@outlook.com** with the subject
+`[SECURITY] MiniCode` and include the details listed below. If this repository
+has GitHub private vulnerability reporting enabled, the Security tab's
+**Report a vulnerability** form is preferred; use it instead of email when it is
+available.
 
 Include as much of the following as you can:
 

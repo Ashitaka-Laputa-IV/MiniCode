@@ -33,13 +33,18 @@ uv run minicode --shell-allow-list all "run the migration"
 | --- | --- | --- | --- |
 | `write_file` / `edit_file` / `delete` | 拒绝 | 需要审批 | 允许 |
 | 安全只读命令 | 允许 | 允许 | 允许 |
-| 显式 allow-list 命令 | 允许（仍需通过语法/参数检查） | 允许 | 允许 |
+| 自定义 allow-list 命令 | 语法检查通过时允许；否则拒绝 | 语法检查通过时允许；否则需要审批 | 允许 |
+| `--shell-allow-list all` | 不放开（仍按非 safe 命令拒绝） | 允许（hard deny-list 除外） | 允许（hard deny-list 除外） |
 | 网络或变更类命令 | 拒绝 | 需要审批 | 允许 |
 | hard deny-list | 拒绝 | 拒绝 | 拒绝 |
 | 非 TTY 下需要审批的动作 | 拒绝 | 自动拒绝 | 不适用 |
 
 补充：
 
+- `ask` / `read-only` 的自定义 allow-list 仍要经过 `_is_safe()`。带重定向、复合
+  命令、`$()`、反引号或危险参数时，allow-list 放行会失效，落到 `ASK` 或 `DENY`。
+- `ask` 下的 `--shell-allow-list all` 会让所有未被 hard deny-list 拦截的命令直接
+  `ALLOW`，包括网络/变更类命令和带重定向的命令；它不经过 `_is_safe()`。
 - `ask` 下文件写入/删除**总是**需要审批，allow-list 不改变文件门控。
 - `read-only` 下 `--shell-allow-list all` 不会放开全部命令；`all` 只对
   `ask` / `yolo` 生效。
@@ -62,10 +67,9 @@ flowchart TD
     MODE -->|ask + allow all| ALLOW2["ALLOW"]
     MODE -->|ask / read-only| SAFE{"safe 或 allow-list？"}
     SAFE -->|是| ALLOW3["ALLOW"]
-    SAFE -->|否| CLASSIFY{"网络 / 变更类？"}
-    CLASSIFY -->|read-only| DENY3["DENY"]
-    CLASSIFY -->|ask| ASK["ASK（需要审批）"]
-    CLASSIFY -->|未知| ASK2["ASK（需要审批）"]
+    SAFE -->|否| MODE2{"模式"}
+    MODE2 -->|read-only| DENY3["DENY"]
+    MODE2 -->|ask| ASK["ASK（需要审批）"]
 ```
 
 实际顺序见 [`Policy.evaluate_command()`](../src/minicode/policy.py)：
@@ -75,10 +79,9 @@ flowchart TD
 3. `yolo` → `ALLOW`
 4. `--shell-allow-list all` 且不是 `read-only` → `ALLOW`
 5. safe 或 allow-list → `ALLOW`
-6. 分类为 network / mutating
+6. 分类为 network / mutating；分类只用于决定拒绝/审批的 reason
 7. `read-only` → `DENY`
-8. `ask` → `ASK`
-9. 其余 `ask` 命令 → `ASK`
+8. 其余 `ask` 命令 → `ASK`
 
 `needs_approval()` 复用同一个判定：只有 `ask` 模式下结果为 `ASK` 时才触发
 审批。
@@ -202,8 +205,10 @@ shell 命令只继承 `SHELL_ENV_ALLOWLIST` 中的变量，包括常见的 OS/PA
 - [ ] **保证 read-only**：在 backend 层检查 `Policy.allows_file_write()` 或
       `evaluate_command()`；不要只依赖系统提示词或 `interrupt_on`。
 - [ ] **扩展策略分类**：涉及新的 shell 命令类型时，更新
-      `SAFE_COMMAND_PREFIXES`、`NETWORK_COMMANDS`、`MUTATING_COMMANDS` 或
-      hard deny-list，并补 policy 测试。
+      `SAFE_COMMAND_PREFIXES`、`NETWORK_COMMANDS` / `NETWORK_PREFIXES`、
+      `MUTATING_COMMANDS` / `MUTATING_PREFIXES` 或 hard deny-list，并补 policy
+      测试。多 token 命令（例如 `git push`、`uv sync`）由前缀元组匹配，
+      只改单 token 集合会漏判。
 - [ ] **更新系统提示词**：权限或工作方式变化时，同步 `mode_hint()`，保证
       `read-only` / `ask` / `yolo` 的文案与实际行为一致。
 - [ ] **补测试**：
