@@ -10,7 +10,7 @@ from minicode.agent import (
     DEFAULT_CHECKPOINT_DB,
     DEFAULT_MODEL,
     build_agent,
-    permission_hint,
+    mode_hint,
     resolve_db_path,
     resolve_model,
     resolve_root,
@@ -208,15 +208,21 @@ def test_shell_hint_matches_platform() -> None:
 @pytest.mark.parametrize(
     ("mode", "expected"),
     [
-        (PermissionMode.READ_ONLY, ("read-only", "denied")),
-        (PermissionMode.ASK, ("ask", "approval", "rejected")),
+        (PermissionMode.READ_ONLY, ("read-only", "Do not modify files", "denied")),
+        (PermissionMode.ASK, ("ask", "allow-list", "approval", "rejected")),
         (PermissionMode.YOLO, ("yolo", "deny-list", "explicitly asks")),
     ],
 )
-def test_permission_hint_matches_mode(mode: PermissionMode, expected: tuple[str, ...]) -> None:
-    hint = permission_hint(mode)
+def test_mode_hint_matches_mode(mode: PermissionMode, expected: tuple[str, ...]) -> None:
+    hint = mode_hint(mode)
     for text in expected:
         assert text in hint
+
+
+def test_mode_hint_read_only_does_not_request_changes() -> None:
+    hint = mode_hint(PermissionMode.READ_ONLY)
+    assert "Make focused changes" not in hint
+    assert "Run the project's tests" not in hint
 
 
 @pytest.mark.parametrize("mode", list(PermissionMode))
@@ -233,6 +239,6 @@ def test_build_agent_prompt_matches_permission_mode(
     build_agent(root=tmp_path, permission_mode=mode)
 
     prompt = captured["system_prompt"]
-    assert permission_hint(mode) in prompt
-    assert "{permissions}" not in prompt
+    assert mode_hint(mode) in prompt
+    assert "{guidance}" not in prompt
     assert "run without confirmation" not in prompt

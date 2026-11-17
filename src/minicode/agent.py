@@ -71,12 +71,9 @@ paths such as `/src/minicode/cli.py`. Never use Windows drive paths like
 Shell commands run with the workspace as the current directory. Use relative
 paths for shell commands. {shell}
 
-Read files before changing them. Make focused changes. Run the project's tests,
-lint, or build commands when they exist.
+{guidance}
 
-{permissions}
-
-When finished, summarize what changed and what you verified.
+When finished, summarize what you found or changed and what you verified.
 """
 
 
@@ -89,26 +86,33 @@ def shell_hint() -> str:
     return "The shell is POSIX sh: use POSIX syntax and $VAR expansion."
 
 
-def permission_hint(mode: str | PermissionMode) -> str:
-    """Return prompt text describing the active permission mode."""
+def mode_hint(mode: str | PermissionMode) -> str:
+    """Return prompt text describing how to work in the active permission mode."""
     parsed = PermissionMode.parse(mode)
     if parsed == PermissionMode.READ_ONLY:
         return (
-            "Permission mode is read-only: file writes/deletes and non-safe shell "
-            "commands are denied. Do not attempt changes; explain the block or "
-            "propose a read-only alternative."
+            "The active permission mode is read-only. Inspect the workspace and "
+            "report findings. Do not modify files. Only safe read-only shell "
+            "commands and explicitly allow-listed commands can run; tests, lint, "
+            "and build commands are usually denied unless allow-listed. If a "
+            "command is blocked, explain the limitation or propose a read-only "
+            "alternative."
         )
     if parsed == PermissionMode.ASK:
         return (
-            "Permission mode is ask: file writes/deletes and risky shell commands "
-            "require user approval; safe read-only commands run directly. If an "
-            "action is rejected, do not retry it; explain the limitation or "
-            "propose a safe alternative."
+            "The active permission mode is ask. Read files before changing them, "
+            "make focused changes, and run the project's tests, lint, or build "
+            "commands when they exist. File writes/deletes and shell commands "
+            "outside the allow-list require user approval; allow-listed commands "
+            "run directly. If an action is rejected, do not retry it; explain the "
+            "limitation or propose a safe alternative."
         )
     return (
-        "Permission mode is yolo: approval prompts are skipped, but catastrophic "
-        "commands on the hard deny-list are still blocked. Avoid destructive or "
-        "irreversible actions unless the user explicitly asks."
+        "The active permission mode is yolo. Read files before changing them, make "
+        "focused changes, and run the project's tests, lint, or build commands when "
+        "they exist. Approval prompts are skipped, but catastrophic commands on "
+        "the hard deny-list are still blocked. Avoid destructive or irreversible "
+        "actions unless the user explicitly asks."
     )
 
 
@@ -211,7 +215,7 @@ def build_agent(
             model=model_name,
             system_prompt=SYSTEM_PROMPT.format(
                 shell=shell_hint(),
-                permissions=permission_hint(mode),
+                guidance=mode_hint(mode),
             ),
             backend=backend,
             interrupt_on=interrupt_on,
