@@ -1,12 +1,13 @@
 import json
 import shutil
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from minicode.evals import runner
-from minicode.evals.runner import cost_for, load_suite, summarize, verification_env
+from minicode.evals.runner import cost_for, load_suite, load_task, summarize, verification_env
 from minicode.evals.trace import Trace
 
 
@@ -22,6 +23,40 @@ def test_smoke_suite_has_twenty_tasks() -> None:
             assert task.hidden_tests.is_dir()
         if task.verify_script is not None:
             assert task.verify_script.is_file()
+
+
+def test_load_task_reads_optional_expected_paths(tmp_path: Path) -> None:
+    task_dir = tmp_path / "expected-paths"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text(
+        'id = "expected-paths"\nexpected_paths = ["src/app.py", "docs/readme.md"]\n',
+        encoding="utf-8",
+    )
+
+    task = load_task(task_dir)
+
+    assert task.expected_paths == ("src/app.py", "docs/readme.md")
+    assert load_suite("smoke")[0].expected_paths == ()
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        '"src/app.py"',
+        "[1, 2]",
+        '["src/app.py", 1]',
+    ],
+)
+def test_load_task_rejects_invalid_expected_paths(tmp_path: Path, value: str) -> None:
+    task_dir = tmp_path / "invalid-expected-paths"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text(
+        f'id = "invalid-expected-paths"\nexpected_paths = {value}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="expected_paths must be a list of strings"):
+        load_task(task_dir)
 
 
 def test_verify_env_excludes_secrets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -83,14 +118,14 @@ def test_summarize() -> None:
         {
             "passed": True,
             "tool_calls": 2,
-            "usage": {"input_tokens": 10, "output_tokens": 5},
+            "usage": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
             "cost_usd": 0.01,
             "duration_s": 1.5,
         },
         {
             "passed": False,
             "tool_calls": 4,
-            "usage": {"input_tokens": 20, "output_tokens": 10},
+            "usage": {"input_tokens": 20, "output_tokens": 10, "total_tokens": 30},
             "cost_usd": 0.02,
             "duration_s": 2.5,
         },
@@ -99,10 +134,19 @@ def test_summarize() -> None:
     assert summary["tasks"] == 2
     assert summary["passed"] == 1
     assert summary["pass_at_1"] == 0.5
+    assert summary["task_pass_counts"] == {"task-0": 1, "task-1": 0}
     assert summary["avg_tool_calls"] == 3.0
     assert summary["input_tokens"] == 30
+    assert summary["avg_input_tokens"] == 15.0
+    assert summary["avg_output_tokens"] == 7.5
+    assert summary["avg_total_tokens"] == 22.5
     assert summary["cost_usd"] == 0.03
+    assert summary["avg_cost_usd"] == 0.015
     assert summary["wall_time_s"] == 4.0
+    assert summary["avg_duration_s"] == 2.0
+    assert summary["trace_runs"] == 0
+    assert summary["avg_approvals"] is None
+    assert summary["avg_blocked"] is None
 
 
 def test_summarize_pass_at_k_and_trace_metrics() -> None:
@@ -162,10 +206,15 @@ def test_summarize_pass_at_k_and_trace_metrics() -> None:
     assert summary["tasks"] == 2
     assert summary["runs"] == 4
     assert summary["passed_tasks"] == 1
+    assert summary["task_pass_counts"] == {"a": 2, "b": 0}
     assert summary["pass_at_1"] == 0.5
     assert summary["pass_at_k"] == 0.5
+    assert summary["trace_runs"] == 4
     assert summary["avg_approvals"] == 0.75
     assert summary["avg_blocked"] == 0.25
+    assert summary["avg_input_tokens"] == 0.0
+    assert summary["avg_cost_usd"] == 0.0
+    assert summary["avg_duration_s"] == 1.25
     assert summary["failure_counts"] == {"loop": 1, "timeout": 1}
 
 
@@ -324,6 +373,44 @@ def test_run_task_classifies_permission_denied(
     )
 
     assert result["failure_reason"] == "permission_denied"
+
+
+def test_run_task_classifies_wrong_files_with_expected_paths(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    task = replace(load_suite("smoke")[0], expected_paths=("src/app.py",))
+
+    def fake_worker(*args, **kwargs):
+        return (
+            {
+                "ok": True,
+                "error": None,
+                "tool_calls": 1,
+                "usage": {},
+                "duration_s": 0.1,
+                "trace_summary": {
+                    "touched_paths": ["src/other.py"],
+                    "ran_tests": True,
+                },
+            },
+            "",
+        )
+
+    monkeypatch.setattr(runner, "run_worker", fake_worker)
+    monkeypatch.setattr(runner, "run_verify", lambda task, workspace: (False, "failed"))
+
+    result = runner.run_task(
+        task,
+        work_root=tmp_path,
+        model=None,
+        baseline="minicode-yolo",
+        run_index=0,
+        pricing={},
+    )
+
+    assert result["failure_reason"] == "wrong_files"
+    assert result["expected_paths"] == ["src/app.py"]
+    assert result["changed_paths"] == ["src/other.py"]
 
 
 def test_run_task_preserves_worker_summary_when_verify_raises(

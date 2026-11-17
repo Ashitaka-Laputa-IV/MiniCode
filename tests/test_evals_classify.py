@@ -65,6 +65,50 @@ def test_permission_denied() -> None:
     assert classify_failure(result(), {"rejections": 1}) == "permission_denied"
 
 
+def test_permission_denied_beats_agent_error() -> None:
+    assert (
+        classify_failure(result(worker_ok=False, error="boom"), {"blocked": 1})
+        == "permission_denied"
+    )
+
+
+def test_wrong_files_requires_expected_paths() -> None:
+    assert (
+        classify_failure(
+            result(expected_paths=["src/app.py"], changed_paths=["src/other.py"]),
+            {"ran_tests": True},
+        )
+        == "wrong_files"
+    )
+    assert (
+        classify_failure(
+            result(changed_paths=["src/other.py"]),
+            {"ran_tests": True},
+        )
+        == "verification_failed"
+    )
+
+
+def test_wrong_files_allows_expected_and_virtual_paths() -> None:
+    assert (
+        classify_failure(
+            result(expected_paths=["src/app.py"], changed_paths=["/src/app.py"]),
+            {"ran_tests": True},
+        )
+        == "verification_failed"
+    )
+
+
+def test_wrong_files_beats_loop() -> None:
+    assert (
+        classify_failure(
+            result(expected_paths=["src/app.py"], changed_paths=["src/other.py"]),
+            {"ran_tests": True, "repeated_tool_calls": True},
+        )
+        == "wrong_files"
+    )
+
+
 def test_loop() -> None:
     assert classify_failure(result(), {"repeated_tool_calls": True}) == "loop"
 

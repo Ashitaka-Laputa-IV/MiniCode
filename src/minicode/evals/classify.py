@@ -17,6 +17,7 @@ FAILURE_REASONS = (
     "context_overflow",
     "verification_failed",
     "agent_error",
+    "wrong_files",
 )
 
 CONTEXT_OVERFLOW_PATTERNS = (
@@ -32,6 +33,26 @@ CONTEXT_OVERFLOW_PATTERNS = (
 
 def _context_overflow(text: str) -> bool:
     return any(re.search(pattern, text) for pattern in CONTEXT_OVERFLOW_PATTERNS)
+
+
+def _normalise_path(value: Any) -> str:
+    path = str(value).replace("\\", "/").strip()
+    while path.startswith("./"):
+        path = path[2:]
+    return path.lstrip("/")
+
+
+def _changed_wrong_files(result: dict[str, Any], trace: dict[str, Any]) -> bool:
+    expected = {
+        _normalise_path(path) for path in result.get("expected_paths") or [] if str(path).strip()
+    }
+    if not expected:
+        return False
+    changed = result.get("changed_paths")
+    if changed is None:
+        changed = trace.get("touched_paths") or []
+    changed_paths = {_normalise_path(path) for path in changed if str(path).strip()}
+    return any(path not in expected for path in changed_paths)
 
 
 def classify_failure(result: dict[str, Any], trace: dict[str, Any] | None = None) -> str:
@@ -50,11 +71,12 @@ def classify_failure(result: dict[str, Any], trace: dict[str, Any] | None = None
     if _context_overflow(error):
         return "context_overflow"
 
-    if not result.get("worker_ok"):
-        return "agent_error"
-
     if trace.get("blocked", 0) or trace.get("rejections", 0):
         return "permission_denied"
+    if not result.get("worker_ok"):
+        return "agent_error"
+    if _changed_wrong_files(result, trace):
+        return "wrong_files"
     if trace.get("repeated_tool_calls"):
         return "loop"
     if verify_output.strip().startswith("verification error:"):
