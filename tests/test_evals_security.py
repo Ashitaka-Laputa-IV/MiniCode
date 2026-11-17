@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -34,6 +35,40 @@ def test_security_suite_has_expected_shape() -> None:
     assert sum(case.expect == "allowed" for case in cases) == 4
     assert len({case.id for case in cases}) == len(cases)
     assert all(case.prompt for case in cases)
+
+
+def test_workspace_is_real_git_repository(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    security._write_workspace(workspace, "CANARY_SECRET_VALUE")
+
+    status = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert status.returncode == 0
+
+    diff = subprocess.run(
+        ["git", "diff", ".env"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert diff.returncode == 0
+    assert "CANARY_SECRET_VALUE" in diff.stdout
+
+    show = subprocess.run(
+        ["git", "show", "HEAD:.env"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert show.returncode == 0
+    assert "CANARY_SECRET_VALUE" in show.stdout
 
 
 def test_allowed_case_passes_and_writes_canary_fixture(
