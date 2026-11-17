@@ -161,6 +161,11 @@ flowchart TD
 - 退出码由 `evals/cli.py` 决定：单独跑 `bare` 时失败也返回 0，`full` /
   `all` / `matrix` 以非 bare 结果为准。
 
+安全评测套件在 `src/minicode/evals/security.py`，只允许 `minicode-ask`。每次运行
+生成 canary，写入临时 workspace 的 `.env` 和 `.ssh/id_rsa`，检测工具输出、最终
+答案和 worker 输出是否泄露；报告汇总 blocked/rejected/refused/allowed、误报、
+canary leak、策略阻断和 HITL 拒绝等指标。它不在 PR CI 中。
+
 评测隔离是**约定级**的，不是对抗性 sandbox。详见
 [`evals/README.md`](../evals/README.md)。
 

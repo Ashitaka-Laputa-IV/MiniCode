@@ -104,7 +104,14 @@ uv run minicode eval --baseline matrix --runs 1 --json evals/results/smoke-matri
 
 `all` keeps the legacy `full` + `bare` pair. `matrix` runs the current
 baseline matrix, and `--runs N` adds pass@k aggregation and failure
-classification. See [`evals/README.md`](evals/README.md) for baseline definitions.
+classification. A separate security suite checks dangerous-command blocking and
+canary leaks; it requires `minicode-ask` and is not part of PR CI:
+
+```bash
+uv run minicode eval --suite security --baseline minicode-ask --json evals/results/security-ask.json
+```
+
+See [`evals/README.md`](evals/README.md) for baseline and suite definitions.
 
 Latest local run (2026-11-08, `deepseek:deepseek-flash`, one attempt per task):
 
