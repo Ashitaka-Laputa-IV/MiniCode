@@ -18,8 +18,8 @@ from langgraph.types import Command
 from minicode.agent import (
     build_agent,
     close_checkpointer,
+    resolve_chat_model,
     resolve_db_path,
-    resolve_model,
     shell_env,
 )
 
@@ -360,7 +360,7 @@ def run_deepagents_default(
             inherit_env=False,
         )
         agent = create_deep_agent(
-            model=resolve_model(model),
+            model=resolve_chat_model(model),
             backend=backend,
             name="deepagents-default",
         )
@@ -406,9 +406,12 @@ def run_full(
 
 
 def run_bare(prompt: str, model: str | None) -> dict[str, Any]:
-    model_name = resolve_model(model)
+    resolved_model = resolve_chat_model(model)
+    chat_model = (
+        init_chat_model(resolved_model) if isinstance(resolved_model, str) else resolved_model
+    )
     started = time.perf_counter()
-    response = init_chat_model(model_name).invoke(prompt)
+    response = chat_model.invoke(prompt)
     return {
         "final": message_text(response),
         "tool_calls": 0,
