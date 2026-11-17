@@ -8,6 +8,14 @@
 - 一律使用 uv，不要用 `pip` 或全局 Python；虚拟环境 `.venv/` 由 uv 管理，已加入 `.gitignore`。
 - `dev` 已推送到 `origin`；PR 基分支为 `dev`，功能分支从 `origin/dev` 切出。
 
+## 文档
+
+- 架构：`docs/architecture.md`
+- 权限与新增工具：`docs/permissions.md`
+- 安全策略：`SECURITY.md`
+- 中文 README：`README.zh-CN.md`
+- 新增工具前先读 `docs/permissions.md` 的接入清单；权限行为变化时同步更新文档和测试。
+
 ## 常用命令
 
 - 同步依赖：`uv sync`
