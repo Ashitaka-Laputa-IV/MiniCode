@@ -511,6 +511,30 @@ def test_run_minicode_no_checkpoint_disables_checkpoint(
     assert captured["checkpoint"] is False
 
 
+def test_run_minicode_no_subagents_disables_subagents(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict = {}
+
+    def fake_build_agent(**kwargs: Any):
+        captured.update(kwargs)
+        return FakeAgent([])
+
+    monkeypatch.setattr(worker, "build_agent", fake_build_agent)
+
+    worker.run_minicode(
+        "prompt",
+        tmp_path,
+        None,
+        5,
+        baseline=resolve_baseline("minicode-no-subagents"),
+    )
+
+    assert captured["subagents"] is False
+    assert captured["permission_mode"] == "yolo"
+    assert captured["checkpoint"] is True
+
+
 def test_run_deepagents_default_builds_native_stack(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

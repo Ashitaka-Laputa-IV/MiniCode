@@ -15,6 +15,15 @@ def test_full_is_an_alias_for_minicode_yolo() -> None:
     assert baseline.checkpoint is True
 
 
+def test_no_subagents_baseline_disables_subagents() -> None:
+    baseline = resolve_baseline("minicode-no-subagents")
+
+    assert baseline.permission_mode == "yolo"
+    assert baseline.checkpoint is True
+    assert baseline.subagents is False
+    assert "minicode-no-subagents" in MATRIX_BASELINES
+
+
 def test_all_expands_to_legacy_full_and_bare() -> None:
     assert resolve_baselines(["all"]) == ["full", "bare"]
 

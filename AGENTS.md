@@ -28,7 +28,7 @@
 - 模型：`--model <provider:model>` 或环境变量 `MINICODE_MODEL`；默认 `deepseek:deepseek-flash`，需要 `DEEPSEEK_API_KEY`
 - 权限模式：`--permission-mode read-only|ask|yolo` 或 `MINICODE_PERMISSION_MODE`；默认 `ask`，非 TTY 下 gated action 会被拒绝
 - shell allow-list：`--shell-allow-list "git status,uv run pytest"` 或 `MINICODE_SHELL_ALLOW_LIST`；也支持 `recommended` / `all`
-- 权限策略是 guardrail，不是 sandbox；不可信任务仍需容器/VM。eval worker 按 baseline 配置权限：`minicode-yolo`/`full`/`minicode-no-checkpoint` 用 `yolo`，`minicode-ask` 用 `ask` + 脚本化审批，`deepagents-default` 不经过 `Policy`/HITL
+- 权限策略是 guardrail，不是 sandbox；不可信任务仍需容器/VM。eval worker 按 baseline 配置权限：`minicode-yolo`/`full`/`minicode-no-checkpoint`/`minicode-no-subagents` 用 `yolo`，`minicode-ask` 用 `ask` + 脚本化审批，`deepagents-default` 不经过 `Policy`/HITL
 - 环境变量：CLI 自动加载当前目录或祖先目录的 `.env`，但只应用 `MINICODE_MODEL` 和已知 provider key，忽略 base URL/endpoint 类变量；shell 已有变量优先。`.env` 已被忽略，提交 `.env.example`，不要把真实 key 写入版本库
 - 添加依赖：`uv add <pkg>`；开发依赖：`uv add --dev <pkg>`
 - 更新锁文件：`uv lock`（升级用 `uv lock --upgrade`）

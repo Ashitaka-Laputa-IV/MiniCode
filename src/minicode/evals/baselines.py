@@ -14,6 +14,7 @@ class Baseline:
     permission_mode: str | None = None
     checkpoint: bool = False
     approval_policy: str | None = None
+    subagents: bool = True
 
 
 BASELINES = {
@@ -38,6 +39,13 @@ BASELINES = {
         permission_mode="yolo",
         checkpoint=False,
     ),
+    "minicode-no-subagents": Baseline(
+        "minicode-no-subagents",
+        "minicode",
+        permission_mode="yolo",
+        checkpoint=True,
+        subagents=False,
+    ),
 }
 
 ALIASES = {"full": "minicode-yolo"}
@@ -49,6 +57,7 @@ MATRIX_BASELINES = [
     "minicode-yolo",
     "minicode-ask",
     "minicode-no-checkpoint",
+    "minicode-no-subagents",
 ]
 BASELINE_CHOICES = [
     "full",
@@ -57,6 +66,7 @@ BASELINE_CHOICES = [
     "minicode-yolo",
     "minicode-ask",
     "minicode-no-checkpoint",
+    "minicode-no-subagents",
     "all",
     "matrix",
 ]
@@ -67,6 +77,7 @@ WORKER_BASELINE_CHOICES = [
     "minicode-yolo",
     "minicode-ask",
     "minicode-no-checkpoint",
+    "minicode-no-subagents",
 ]
 
 

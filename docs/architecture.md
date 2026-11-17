@@ -130,7 +130,7 @@ sequenceDiagram
 | 单次任务 + `read-only` / `yolo` | 无 | 不需要跨轮恢复 |
 | 单次任务 + `ask` | `InMemorySaver` | 支撑本轮内的 approve/reject |
 | REPL | `SqliteSaver` | 默认 `<workspace>/.minicode/checkpoints.sqlite` |
-| 评测 worker | 按 baseline | `minicode-yolo` / `full` / `minicode-ask` 使用 `SqliteSaver`；`minicode-no-checkpoint`、`deepagents-default`、`bare` 无 |
+| 评测 worker | 按 baseline | `minicode-yolo` / `full` / `minicode-ask` / `minicode-no-subagents` 使用 `SqliteSaver`；`minicode-no-checkpoint`、`deepagents-default`、`bare` 无 |
 
 SQLite 数据库包含对话和工具输出，属于敏感数据；`.minicode/` 和 `*.sqlite*`
 已在 `.gitignore` 中。并行 REPL 要使用不同的 `--thread` 和 `--db`，否则可能
