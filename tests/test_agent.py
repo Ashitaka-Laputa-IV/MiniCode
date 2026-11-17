@@ -209,7 +209,7 @@ def test_shell_hint_matches_platform() -> None:
     ("mode", "expected"),
     [
         (PermissionMode.READ_ONLY, ("read-only", "Do not modify files", "denied")),
-        (PermissionMode.ASK, ("ask", "allow-list", "approval", "rejected")),
+        (PermissionMode.ASK, ("ask", "allow-list", "hard deny-list", "rejected")),
         (PermissionMode.YOLO, ("yolo", "deny-list", "explicitly asks")),
     ],
 )
@@ -223,6 +223,13 @@ def test_mode_hint_read_only_does_not_request_changes() -> None:
     hint = mode_hint(PermissionMode.READ_ONLY)
     assert "Make focused changes" not in hint
     assert "Run the project's tests" not in hint
+
+
+def test_mode_hint_unknown_mode_is_conservative(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(PermissionMode, "parse", staticmethod(lambda value: object()))
+    hint = mode_hint("plan")
+    assert "not recognized" in hint
+    assert "Do not modify files" in hint
 
 
 @pytest.mark.parametrize("mode", list(PermissionMode))

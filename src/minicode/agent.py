@@ -103,16 +103,22 @@ def mode_hint(mode: str | PermissionMode) -> str:
             "The active permission mode is ask. Read files before changing them, "
             "make focused changes, and run the project's tests, lint, or build "
             "commands when they exist. File writes/deletes and shell commands "
-            "outside the allow-list require user approval; allow-listed commands "
-            "run directly. If an action is rejected, do not retry it; explain the "
-            "limitation or propose a safe alternative."
+            "outside the allow-list require user approval. Allow-listed commands "
+            "run directly, but catastrophic commands on the hard deny-list are "
+            "denied outright. If an action is rejected, do not retry it; explain "
+            "the limitation or propose a safe alternative."
+        )
+    if parsed == PermissionMode.YOLO:
+        return (
+            "The active permission mode is yolo. Read files before changing them, "
+            "make focused changes, and run the project's tests, lint, or build "
+            "commands when they exist. Approval prompts are skipped, but "
+            "catastrophic commands on the hard deny-list are still blocked. Avoid "
+            "destructive or irreversible actions unless the user explicitly asks."
         )
     return (
-        "The active permission mode is yolo. Read files before changing them, make "
-        "focused changes, and run the project's tests, lint, or build commands when "
-        "they exist. Approval prompts are skipped, but catastrophic commands on "
-        "the hard deny-list are still blocked. Avoid destructive or irreversible "
-        "actions unless the user explicitly asks."
+        "The active permission mode is not recognized. Do not modify files, and "
+        "ask the user to confirm the permission mode before running commands."
     )
 
 
