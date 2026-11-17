@@ -19,7 +19,9 @@ and are merged to `main` when ready. Older commits are not supported.
 
 Please report suspected vulnerabilities privately through GitHub's **Security**
 tab using **Report a vulnerability** (GitHub Security Advisories). Do not open a
-public issue for a security problem.
+public issue for a security problem. If the private reporting form is not
+available, contact the repository owner through GitHub before disclosing details
+publicly.
 
 Include as much of the following as you can:
 
