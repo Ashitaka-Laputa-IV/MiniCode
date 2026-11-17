@@ -17,6 +17,7 @@ from minicode.agent import (
     shell_env,
     shell_hint,
 )
+from minicode.middleware import NoSubagentsMiddleware
 from minicode.policy import PermissionMode
 
 
@@ -82,6 +83,24 @@ def test_build_agent_checkpointer_is_optional(
     assert isinstance(checkpointer, SqliteSaver)
     assert (tmp_path / DEFAULT_CHECKPOINT_DB).exists()
     checkpointer.conn.close()
+
+
+def test_build_agent_can_disable_subagents(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict = {}
+
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("minicode.agent.create_deep_agent", fake_create)
+
+    build_agent(root=tmp_path, permission_mode="yolo", subagents=False)
+    middleware = captured["middleware"]
+    assert len(middleware) == 1
+    assert isinstance(middleware[0], NoSubagentsMiddleware)
+
+    build_agent(root=tmp_path, permission_mode="yolo")
+    assert captured["middleware"] == []
 
 
 def test_build_agent_read_only_has_no_hitl(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

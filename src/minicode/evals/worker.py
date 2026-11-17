@@ -245,6 +245,7 @@ def run_minicode(
             checkpoint=baseline.checkpoint,
             db_path=checkpoint_db,
             permission_mode=baseline.permission_mode or "yolo",
+            subagents=baseline.subagents,
             trace_sink=trace.sink,
         )
         result = run_agent_stream(

@@ -31,6 +31,7 @@ on:
           - minicode-yolo
           - minicode-ask
           - minicode-no-checkpoint
+          - minicode-no-subagents
       runs:
         description: Runs per task and baseline (pass@k; use 1 for a smoke run)
         required: false

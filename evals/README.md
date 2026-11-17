@@ -17,7 +17,7 @@ uv run minicode eval --baseline matrix --runs 1 --json evals/results/smoke-matri
 
 - `full` is the legacy alias for `minicode-yolo`.
 - `all` still means `full` + `bare`.
-- `matrix` runs the current five-baseline matrix.
+- `matrix` runs the current six-baseline matrix.
 - `--runs N` repeats every task in every selected baseline. `pass@k` uses
   `k = runs`; the default is 1.
 
@@ -33,6 +33,7 @@ git.
 | `minicode-yolo` | MiniCode with `yolo` permission mode and checkpointing enabled. |
 | `minicode-ask` | MiniCode with `ask` mode, checkpointing enabled, and a scripted non-interactive approver. |
 | `minicode-no-checkpoint` | Same as `minicode-yolo` but without a checkpointer. The difference is expected to matter only in recovery runs. |
+| `minicode-no-subagents` | Same as `minicode-yolo` but removes the `task` tool and rejects any attempted subagent call. Isolates the contribution of subagents. |
 
 `deepagents-default` has no `PolicyShellBackend`, so it also has no hard
 deny-list. Treat it as a framework-level comparison, not a safe runtime.
