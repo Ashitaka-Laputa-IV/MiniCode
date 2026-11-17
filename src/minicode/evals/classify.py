@@ -43,11 +43,11 @@ def classify_failure(result: dict[str, Any], trace: dict[str, Any] | None = None
     error = str(result.get("error") or "").lower()
     verify_output = str(result.get("verify_output") or "").lower()
 
-    if "timed out" in error or "timed out" in verify_output:
+    if "timed out" in error or verify_output.strip() == "verification timed out":
         return "timeout"
     if "tool call limit" in error:
         return "tool_limit"
-    if _context_overflow(error) or _context_overflow(verify_output):
+    if _context_overflow(error):
         return "context_overflow"
 
     if not result.get("worker_ok"):

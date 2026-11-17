@@ -35,11 +35,13 @@ class FakeInterrupt:
 class HitlAgent:
     def __init__(self) -> None:
         self.resumed = False
+        self.resume_payload: Any = None
 
     def stream(self, input: Any, stream_mode: str, config: Any = None):
         assert stream_mode == "updates"
         if isinstance(input, Command):
             self.resumed = True
+            self.resume_payload = input.resume
             yield {"model": {"messages": [ai_message(content="done")]}}
         else:
             yield {"__interrupt__": [FakeInterrupt()]}
@@ -49,6 +51,7 @@ class HitlUsageAgent:
     """Replay the interrupted AI message the way LangGraph HITL resume does."""
 
     def __init__(self) -> None:
+        self.resume_payload: Any = None
         self.replayed = ai_message(
             tool_calls=[{"name": "write_file", "id": "call-1", "args": {}}],
             usage_metadata={"input_tokens": 10, "output_tokens": 2},
@@ -58,6 +61,7 @@ class HitlUsageAgent:
     def stream(self, input: Any, stream_mode: str, config: Any = None):
         assert stream_mode == "updates"
         if isinstance(input, Command):
+            self.resume_payload = input.resume
             yield {
                 "model": {
                     "messages": [
@@ -415,6 +419,7 @@ def test_run_agent_stream_resumes_with_scripted_approval() -> None:
 
     assert result["final"] == "done"
     assert agent.resumed is True
+    assert agent.resume_payload == {"decisions": [{"type": "approve"}]}
     assert trace.summary()["approvals"] == 1
     assert trace.summary()["rejections"] == 0
 
@@ -434,6 +439,7 @@ def test_run_agent_stream_does_not_double_count_replayed_usage() -> None:
     assert result["tool_calls"] == 1
     assert result["usage"] == {"input_tokens": 30, "output_tokens": 5}
     assert trace.summary()["usage"] == {"input_tokens": 30, "output_tokens": 5}
+    assert agent.resume_payload == {"decisions": [{"type": "approve"}]}
 
 
 def test_run_agent_stream_rejects_without_policy() -> None:
@@ -449,6 +455,8 @@ def test_run_agent_stream_rejects_without_policy() -> None:
 
     assert result["final"] == "done"
     assert trace.summary()["rejections"] == 1
+    assert agent.resume_payload["decisions"][0]["type"] == "reject"
+    assert "no approval policy configured" in agent.resume_payload["decisions"][0]["message"]
 
 
 def test_run_minicode_uses_baseline_and_trace(

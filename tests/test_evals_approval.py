@@ -29,6 +29,30 @@ def test_protected_paths_are_rejected(path: str) -> None:
     assert "protected path" in reason
 
 
+@pytest.mark.parametrize(
+    ("path", "reason"),
+    [
+        (".env ", "protected path"),
+        (".env.", "protected path"),
+        (".env...", "protected path"),
+        (".git.", "protected path"),
+        (".git ./config", "protected path"),
+        (".git./config", "protected path"),
+        ("sub/.git./config", "protected path"),
+        ("sub/.env /x", "protected path"),
+        (".env::$DATA", "invalid or escaping"),
+        (".env:stream", "invalid or escaping"),
+        ("ENV~1", "invalid or escaping"),
+        ("//server/share/.env", "invalid or escaping"),
+    ],
+)
+def test_windows_protected_path_spellings_are_rejected(path: str, reason: str) -> None:
+    decision, message = decide({"name": "write_file", "args": {"file_path": path}})
+
+    assert decision == "reject"
+    assert reason in message
+
+
 @pytest.mark.parametrize("path", ["../.env", "sub/../.env", "../../.git/config"])
 def test_escaping_paths_are_rejected(path: str) -> None:
     decision, reason = decide({"name": "write_file", "args": {"file_path": path}})
@@ -54,7 +78,6 @@ def test_delete_of_workspace_file_is_approved() -> None:
         "mv old.py new.py",
         "cp a.py b.py",
         "touch marker",
-        "cp -r a.py b.py",
         "mkdir -p build",
         "touch -c marker",
         r"cp notes\todo.md notes\copy.md",
@@ -90,6 +113,8 @@ def test_risky_commands_are_rejected(command: str) -> None:
         "pytest\nwhoami",
         "pytest\rwhoami",
         "pytest\ncat .env",
+        "pytest -k ^test",
+        "pytest -k 'foo!bar'",
     ],
 )
 def test_newline_command_injection_is_rejected(command: str) -> None:
@@ -121,6 +146,34 @@ def test_newline_command_injection_is_rejected(command: str) -> None:
         "touch -r.env x",
         r"mkdir C:\foo",
         r"mkdir ..\outside",
+        "cp -r a.py b.py",
+        "cp -R a.py b.py",
+        "cp -a a.py b.py",
+        "cp --archive a.py b.py",
+        "cp --arch a.py b.py",
+        "cp --recursive a.py b.py",
+        "cp --recurs a.py b.py",
+        "mv --recursive a.py b.py",
+        "mv --recurs a.py b.py",
+        "cp -L link dest",
+        "cp -H link dest",
+        "cp -P link dest",
+        "cp -d link dest",
+        "cp -l link dest",
+        "cp -s link dest",
+        "mkdir ^.git",
+        "mkdir .git^",
+        "mkdir .env^",
+        "mkdir .git.",
+        "mkdir .env ",
+        "mkdir ENV~1",
+        "mkdir .env::$DATA",
+        "mkdir .git./config",
+        "mkdir .git /config",
+        "mkdir .env...",
+        "touch .env.",
+        "cp .env. leaked",
+        "cp ENV~1 leaked",
     ],
 )
 def test_file_commands_cannot_touch_protected_or_absolute_paths(command: str) -> None:

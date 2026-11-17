@@ -142,6 +142,15 @@ def test_main_matrix_and_runs(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls["runs"] == 2
 
 
+def test_main_empty_summary_does_not_crash(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = make_report(0, 0)
+    report["baselines"]["full"] = {}
+
+    code, _ = run_main(monkeypatch, report)
+
+    assert code == 0
+
+
 def test_main_runs_two_all_passed(monkeypatch: pytest.MonkeyPatch) -> None:
     report = make_report(4, 2)
     report["runs"] = 2

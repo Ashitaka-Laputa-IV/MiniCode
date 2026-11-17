@@ -363,7 +363,10 @@ def run_task(
     verify_ok = False
     verify_output = ""
     if worker.get("ok"):
-        verify_ok, verify_output = run_verify(task, workspace)
+        try:
+            verify_ok, verify_output = run_verify(task, workspace)
+        except Exception as exc:
+            verify_output = f"verification error: {exc}"
 
     passed = bool(worker.get("ok")) and verify_ok
     model_name = model or os.getenv("MINICODE_MODEL", "")

@@ -246,6 +246,45 @@ def test_run_task_classifies_permission_denied(
     assert result["failure_reason"] == "permission_denied"
 
 
+def test_run_task_preserves_worker_summary_when_verify_raises(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    task = load_suite("smoke")[0]
+
+    def fake_worker(*args, **kwargs):
+        return (
+            {
+                "ok": True,
+                "error": None,
+                "tool_calls": 3,
+                "usage": {"input_tokens": 10, "output_tokens": 2},
+                "duration_s": 0.1,
+                "trace_summary": {"ran_tests": True, "tool_calls": 3},
+            },
+            "",
+        )
+
+    def broken_verify(task, workspace):
+        raise RuntimeError("verify crashed")
+
+    monkeypatch.setattr(runner, "run_worker", fake_worker)
+    monkeypatch.setattr(runner, "run_verify", broken_verify)
+
+    result = runner.run_task(
+        task,
+        work_root=tmp_path,
+        model=None,
+        baseline="minicode-ask",
+        run_index=0,
+        pricing={},
+    )
+
+    assert result["tool_calls"] == 3
+    assert result["usage"] == {"input_tokens": 10, "output_tokens": 2}
+    assert result["failure_reason"] == "verification_failed"
+    assert "verification error: verify crashed" in result["verify_output"]
+
+
 def test_run_suite_rejects_non_positive_runs(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(runner, "load_suite", lambda suite: [])
 

@@ -24,6 +24,17 @@ def test_timeout_from_worker_and_verify() -> None:
     assert classify_failure(result(verify_output="verification timed out")) == "timeout"
 
 
+def test_verify_output_does_not_spoof_timeout_or_context_overflow() -> None:
+    assert (
+        classify_failure(result(verify_output="pytest failed: timed out waiting for server"))
+        == "verification_failed"
+    )
+    assert (
+        classify_failure(result(verify_output="assert context length exceeded"))
+        == "verification_failed"
+    )
+
+
 def test_tool_limit() -> None:
     assert classify_failure(result(error="tool call limit exceeded: 30")) == "tool_limit"
 

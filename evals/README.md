@@ -31,7 +31,7 @@ git.
 | `bare` | Sends the prompt directly to the model with no tools. Lower bound. |
 | `deepagents-default` | Native `create_deep_agent` plus `LocalShellBackend` and the filtered shell environment. No MiniCode system prompt, `Policy`, HITL, or checkpointer. |
 | `minicode-yolo` | MiniCode with `yolo` permission mode and checkpointing enabled. |
-| `minicode-ask` | MiniCode with `ask` mode and a scripted non-interactive approver. |
+| `minicode-ask` | MiniCode with `ask` mode, checkpointing enabled, and a scripted non-interactive approver. |
 | `minicode-no-checkpoint` | Same as `minicode-yolo` but without a checkpointer. The difference is expected to matter only in recovery runs. |
 
 `deepagents-default` has no `PolicyShellBackend`, so it also has no hard
@@ -39,9 +39,15 @@ deny-list. Treat it as a framework-level comparison, not a safe runtime.
 
 `minicode-ask` approves ordinary workspace file edits and a small development
 command allow-list (`pytest`, `uv run pytest`, `ruff`, `python -m pytest`,
-`mkdir`, `mv`, `cp`, `touch`). It rejects protected paths (`.git/`, `.env`) and
-commands outside that list. This is a deterministic eval user, not a claim that
-the default CLI approval flow behaves this way.
+`mkdir`, `mv`, `cp`, `touch`). For gated writes/deletes and direct path-command
+arguments it rejects protected paths (`.git/`, `.env`), including Windows
+alternate-data-stream, 8.3 short-name, and trailing-dot/space spellings.
+Normal Policy read-only commands such as `cat .env` are not reviewed by this
+approver. `cp` is non-recursive: recursive flags are rejected. `mv` only checks
+the path tokens; moving a directory can move protected files inside it, so use
+`mv` for files only. Protected-path checks are lexical; symlinks and existing
+file contents are not resolved. This is a deterministic eval user, not a claim
+that the default CLI approval flow behaves this way.
 
 The eval worker runs in a non-interactive subprocess, so `minicode-ask` uses the
 scripted approver instead of stdin. `deepagents-default` and the yolo baselines

@@ -11,8 +11,15 @@ FILE_TOOLS = {"write_file", "edit_file", "delete"}
 PROTECTED_NAMES = {".git", ".env"}
 PATH_COMMANDS = {"cp", "mv", "touch", "mkdir"}
 GLOB_CHARS = frozenset("*?[]{}")
+WINDOWS_INVALID_PATH_CHARS = frozenset('<>:"|?*')
+SHORT_NAME_RE = re.compile(r"~\d+")
+RECURSIVE_LONG_OPTIONS = frozenset({"--archive", "--recursive"})
 PATH_SHORT_FLAGS = {
-    "cp": frozenset("abdfilnprRsuvxTLPH"),
+    # -a, -r, and -R are intentionally omitted: recursive copies can bypass
+    # checks for protected files inside the source directory. Symlink-related
+    # flags (-d/-l/-s/-L/-P/-H) are also omitted so a safe-looking path cannot
+    # dereference or link to a protected file.
+    "cp": frozenset("bfinpuvxT"),
     "mv": frozenset("bfinuvT"),
     "touch": frozenset("acfhm"),
     "mkdir": frozenset("pv"),
@@ -32,6 +39,8 @@ FORBIDDEN_COMMAND_TOKENS = (
     "$",
     "~",
     "%",
+    "^",
+    "!",
 )
 APPROVED_COMMAND_PREFIXES = (
     "pytest",
@@ -50,16 +59,32 @@ APPROVED_COMMAND_PREFIXES = (
 
 def _normalise_path(value: Any) -> str | None:
     raw = str(value or "").replace("\\", "/")
+    if not raw or any(ord(char) < 32 for char in raw) or raw.startswith("//"):
+        return None
     parts = PurePosixPath(raw).parts
     if any(part == ".." for part in parts):
         return None
-    cleaned = [part for part in parts if part not in {"", "/", "."}]
+    cleaned: list[str] = []
+    for part in parts:
+        if part in {"", "/", "."}:
+            continue
+        # Windows ignores alternate data streams, 8.3 aliases, and trailing
+        # spaces/dots when resolving a path. Reject or normalise them before
+        # checking protected names so those spellings cannot bypass .env/.git.
+        if any(char in WINDOWS_INVALID_PATH_CHARS for char in part):
+            return None
+        if SHORT_NAME_RE.search(part):
+            return None
+        normalised = part.rstrip(" .")
+        if normalised in {"", ".", ".."}:
+            return None
+        cleaned.append(normalised)
     return "/".join(cleaned) if cleaned else None
 
 
 def _is_protected(path: str) -> bool:
     for part in PurePosixPath(path).parts:
-        lowered = part.lower()
+        lowered = part.casefold().rstrip(" .")
         if lowered in PROTECTED_NAMES or lowered.startswith(".env."):
             return True
     return False
@@ -84,6 +109,15 @@ def _short_options_allowed(command_name: str, token: str) -> bool:
     return bool(letters) and all(letter in allowed for letter in letters)
 
 
+def _long_option_allowed(command_name: str, token: str) -> bool:
+    if command_name not in {"cp", "mv"}:
+        return True
+    option = token.split("=", 1)[0].casefold()
+    # Long options may be abbreviated by GNU tools, so reject any prefix of
+    # --archive/--recursive as well as the full spelling.
+    return not any(full.startswith(option) for full in RECURSIVE_LONG_OPTIONS)
+
+
 def _command_path_allowed(value: str) -> bool:
     value = _strip_quotes(value)
     if not value or any(char in value for char in GLOB_CHARS):
@@ -104,6 +138,8 @@ def _path_tokens_allowed(
             continue
         if not end_options and token.startswith("-") and token != "-":
             if token.startswith("--"):
+                if not _long_option_allowed(command_name, token):
+                    return False, f"recursive command option is not allowed: {token}"
                 if "=" in token:
                     value = token.split("=", 1)[1]
                     if value and not _command_path_allowed(value):
@@ -129,6 +165,8 @@ def _path_tokens_allowed(
             continue
         if not end_options and raw.startswith("-") and raw != "-":
             if raw.startswith("--"):
+                if not _long_option_allowed(command_name, raw):
+                    return False, f"recursive command option is not allowed: {raw}"
                 if "=" in raw:
                     value = _strip_quotes(raw.split("=", 1)[1])
                     if value and not _command_path_allowed(value):
