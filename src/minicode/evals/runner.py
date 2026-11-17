@@ -58,6 +58,11 @@ def load_task(path: Path) -> Task:
     hidden = data.get("hidden_tests")
     verify_script = data.get("verify_script")
     timeout = int(data.get("timeout_seconds", 180))
+    expected_paths = data.get("expected_paths", [])
+    if not isinstance(expected_paths, list) or not all(
+        isinstance(item, str) for item in expected_paths
+    ):
+        raise ValueError(f"{path / 'task.toml'}: expected_paths must be a list of strings")
     return Task(
         id=task_id,
         path=path,
@@ -69,7 +74,7 @@ def load_task(path: Path) -> Task:
         hidden_tests=(path / str(hidden)) if hidden else None,
         verify_command=(str(data["verify_command"]) if "verify_command" in data else None),
         verify_script=(path / str(verify_script)) if verify_script else None,
-        expected_paths=tuple(str(item) for item in data.get("expected_paths", [])),
+        expected_paths=tuple(expected_paths),
     )
 
 

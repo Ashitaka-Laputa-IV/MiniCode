@@ -123,10 +123,10 @@ Failure categories currently include `timeout`, `tool_limit`,
 `permission_denied`, `agent_error`, `wrong_files`, `loop`, `no_tests_run`,
 `context_overflow`, and `verification_failed`. `wrong_files` is only emitted
 when `task.toml` declares `expected_paths` and the trace shows a write, edit, or
-delete outside that set; tasks without the field fall back to
-`verification_failed`. The remaining categories are mutually exclusive and
-deterministic. Secret-leak and recovery metrics are reported by their separate
-suites, not by smoke results.
+delete outside that set; tasks without the field continue through the remaining
+classification rules. `expected_paths` must be a list of strings. The remaining
+categories are mutually exclusive and deterministic. Secret-leak and recovery
+metrics are reported by their separate suites, not by smoke results.
 
 MiniCode and `deepagents-default` runs write a temporary `trace.jsonl` next to
 their workspace; `bare` runs do not. Traces are for evals only and are kept only

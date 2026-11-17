@@ -39,6 +39,26 @@ def test_load_task_reads_optional_expected_paths(tmp_path: Path) -> None:
     assert load_suite("smoke")[0].expected_paths == ()
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        '"src/app.py"',
+        "[1, 2]",
+        '["src/app.py", 1]',
+    ],
+)
+def test_load_task_rejects_invalid_expected_paths(tmp_path: Path, value: str) -> None:
+    task_dir = tmp_path / "invalid-expected-paths"
+    task_dir.mkdir()
+    (task_dir / "task.toml").write_text(
+        f'id = "invalid-expected-paths"\nexpected_paths = {value}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="expected_paths must be a list of strings"):
+        load_task(task_dir)
+
+
 def test_verify_env_excludes_secrets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DEEPSEEK_API_KEY", "secret")
     env = verification_env(tmp_path)
