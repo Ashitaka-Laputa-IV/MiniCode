@@ -247,6 +247,7 @@ def test_real_disable_checkpoint_control_keeps_no_persistent_state(tmp_path: Pat
     assert phase2["thread_id"] is None
     assert phase2["checkpoint_db"] is None
     assert not db.exists()
+    assert not (tmp_path / "result.txt").exists()
 
 
 def make_worker(
