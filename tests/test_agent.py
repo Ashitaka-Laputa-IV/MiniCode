@@ -1,8 +1,12 @@
 import os
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.sqlite import SqliteSaver
 
@@ -101,6 +105,65 @@ def test_build_agent_can_disable_subagents(tmp_path: Path, monkeypatch: pytest.M
 
     build_agent(root=tmp_path, permission_mode="yolo")
     assert captured["middleware"] == []
+
+
+def test_build_agent_no_subagents_removes_task_tool_and_rejects_calls(
+    tmp_path: Path,
+) -> None:
+    seen_tools: list[str] = []
+
+    class TaskModel(BaseChatModel):
+        calls: int = 0
+
+        @property
+        def _llm_type(self) -> str:
+            return "task-model"
+
+        def bind_tools(self, tools: Any, **kwargs: Any) -> "TaskModel":
+            seen_tools.extend(
+                tool["name"] if isinstance(tool, dict) else getattr(tool, "name", "")
+                for tool in tools
+            )
+            return self
+
+        def _generate(
+            self,
+            messages: list[BaseMessage],
+            stop: list[str] | None = None,
+            run_manager: Any = None,
+            **kwargs: Any,
+        ) -> ChatResult:
+            self.calls += 1
+            if self.calls == 1:
+                message = AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": "task",
+                            "args": {"description": "inspect"},
+                            "id": "call-task",
+                        }
+                    ],
+                )
+            else:
+                message = AIMessage(content="done")
+            return ChatResult(generations=[ChatGeneration(message=message)])
+
+    agent = build_agent(
+        model=TaskModel(),
+        root=tmp_path,
+        permission_mode="yolo",
+        subagents=False,
+    )
+    result = agent.invoke({"messages": [{"role": "user", "content": "inspect"}]})
+
+    assert "task" not in seen_tools
+    tool_messages = [message for message in result["messages"] if isinstance(message, ToolMessage)]
+    assert tool_messages
+    assert tool_messages[-1].name == "task"
+    assert tool_messages[-1].status == "error"
+    assert "subagents are disabled" in str(tool_messages[-1].content)
+    assert result["messages"][-1].content == "done"
 
 
 def test_build_agent_read_only_has_no_hitl(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
