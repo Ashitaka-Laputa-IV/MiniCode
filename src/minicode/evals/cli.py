@@ -8,6 +8,7 @@ from pathlib import Path
 
 from ..agent import resolve_model
 from ..cli import load_env
+from .baselines import BASELINE_CHOICES, resolve_baselines
 from .runner import DEFAULT_SUITE, print_report, run_suite
 
 
@@ -23,9 +24,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--baseline",
-        choices=["full", "bare", "all"],
+        choices=BASELINE_CHOICES,
         default="full",
-        help="agent to evaluate (default: full)",
+        help="agent to evaluate (default: full; use matrix for all baselines)",
+    )
+    parser.add_argument(
+        "--runs",
+        type=int,
+        default=1,
+        help="run each task this many times (default: 1)",
     )
     parser.add_argument("--model", default=None, help="LangChain model string")
     parser.add_argument(
@@ -45,14 +52,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.runs < 1:
+        raise SystemExit("--runs must be at least 1")
     load_env()
     model = resolve_model(args.model)
-    baselines = ["full", "bare"] if args.baseline == "all" else [args.baseline]
+    baselines = resolve_baselines([args.baseline])
     report = run_suite(
         suite=args.suite,
         model=model,
         baselines=baselines,
         task_ids=args.task,
+        runs=args.runs,
         keep=args.keep,
     )
     print_report(report)

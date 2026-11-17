@@ -4,18 +4,45 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from langgraph.types import Command
 
 from minicode.evals import worker
+from minicode.evals.baselines import resolve_baseline
+from minicode.evals.trace import Trace
 
 
 class FakeAgent:
     def __init__(self, updates: list[Any]) -> None:
         self.updates = updates
 
-    def stream(self, input: Any, stream_mode: str):
+    def stream(self, input: Any, stream_mode: str, config: Any = None):
         assert input == {"messages": [{"role": "user", "content": "prompt"}]}
         assert stream_mode == "updates"
+        if config is not None:
+            assert config["configurable"]["thread_id"]
         yield from self.updates
+
+
+class FakeInterrupt:
+    id = "interrupt-1"
+    value = {
+        "action_requests": [
+            {"name": "write_file", "args": {"file_path": "/app.py"}},
+        ],
+    }
+
+
+class HitlAgent:
+    def __init__(self) -> None:
+        self.resumed = False
+
+    def stream(self, input: Any, stream_mode: str, config: Any = None):
+        assert stream_mode == "updates"
+        if isinstance(input, Command):
+            self.resumed = True
+            yield {"model": {"messages": [ai_message(content="done")]}}
+        else:
+            yield {"__interrupt__": [FakeInterrupt()]}
 
 
 class FakeModel:
@@ -207,12 +234,19 @@ def test_worker_main_full(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
     output = tmp_path / "worker.json"
     calls: dict = {}
 
-    def fake_run_full(prompt: str, root: Path, model: str | None, max_tool_calls: int):
+    def fake_run_full(
+        prompt: str,
+        root: Path,
+        model: str | None,
+        max_tool_calls: int,
+        **kwargs: Any,
+    ):
         calls.update(
             prompt=prompt,
             root=root,
             model=model,
             max_tool_calls=max_tool_calls,
+            **kwargs,
         )
         return {
             "final": "ok",
@@ -249,6 +283,9 @@ def test_worker_main_full(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
         "root": tmp_path,
         "model": "deepseek:deepseek-flash",
         "max_tool_calls": 7,
+        "trace_path": None,
+        "checkpoint_db": None,
+        "thread_id": None,
     }
 
 
@@ -297,7 +334,7 @@ def test_worker_main_records_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     prompt.write_text("task", encoding="utf-8")
     output = tmp_path / "worker.json"
 
-    def fail(*args):
+    def fail(*args: Any, **kwargs: Any):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(worker, "run_full", fail)
@@ -320,3 +357,118 @@ def test_worker_main_records_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert data["error"] == "RuntimeError: boom"
     assert "RuntimeError" in data["traceback"]
     assert data["final"] == ""
+
+
+def test_run_agent_stream_resumes_with_scripted_approval() -> None:
+    agent = HitlAgent()
+    trace = Trace()
+
+    result = worker.run_agent_stream(
+        agent,
+        "prompt",
+        max_tool_calls=5,
+        trace=trace,
+        approval_policy="eval",
+    )
+
+    assert result["final"] == "done"
+    assert agent.resumed is True
+    assert trace.summary()["approvals"] == 1
+    assert trace.summary()["rejections"] == 0
+
+
+def test_run_agent_stream_rejects_without_policy() -> None:
+    agent = HitlAgent()
+    trace = Trace()
+
+    result = worker.run_agent_stream(
+        agent,
+        "prompt",
+        max_tool_calls=5,
+        trace=trace,
+    )
+
+    assert result["final"] == "done"
+    assert trace.summary()["rejections"] == 1
+
+
+def test_run_minicode_uses_baseline_and_trace(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict = {}
+
+    def fake_build_agent(**kwargs: Any):
+        captured.update(kwargs)
+        return FakeAgent([])
+
+    monkeypatch.setattr(worker, "build_agent", fake_build_agent)
+    trace_file = tmp_path / "trace.jsonl"
+
+    result = worker.run_minicode(
+        "prompt",
+        tmp_path,
+        None,
+        5,
+        baseline=resolve_baseline("minicode-ask"),
+        trace_path=trace_file,
+        checkpoint_db=tmp_path / "checkpoint.sqlite",
+        thread_id="thread-1",
+    )
+
+    assert captured["permission_mode"] == "ask"
+    assert captured["checkpoint"] is True
+    assert callable(captured["trace_sink"])
+    assert result["trace_summary"]["tool_calls"] == 0
+    assert trace_file.exists()
+
+
+def test_run_minicode_no_checkpoint_disables_checkpoint(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict = {}
+
+    def fake_build_agent(**kwargs: Any):
+        captured.update(kwargs)
+        return FakeAgent([])
+
+    monkeypatch.setattr(worker, "build_agent", fake_build_agent)
+
+    worker.run_minicode(
+        "prompt",
+        tmp_path,
+        None,
+        5,
+        baseline=resolve_baseline("minicode-no-checkpoint"),
+    )
+
+    assert captured["checkpoint"] is False
+
+
+def test_run_deepagents_default_builds_native_stack(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict = {}
+
+    def fake_backend(**kwargs: Any):
+        captured["backend_kwargs"] = kwargs
+        return object()
+
+    def fake_create_deep_agent(**kwargs: Any):
+        captured.update(kwargs)
+        return FakeAgent([])
+
+    monkeypatch.setattr(worker, "LocalShellBackend", fake_backend)
+    monkeypatch.setattr(worker, "create_deep_agent", fake_create_deep_agent)
+
+    result = worker.run_deepagents_default(
+        "prompt",
+        tmp_path,
+        "deepseek:deepseek-flash",
+        5,
+    )
+
+    assert captured["backend_kwargs"]["root_dir"] == tmp_path
+    assert captured["backend_kwargs"]["inherit_env"] is False
+    assert "system_prompt" not in captured
+    assert "interrupt_on" not in captured
+    assert result["trace_summary"]["tool_calls"] == 0

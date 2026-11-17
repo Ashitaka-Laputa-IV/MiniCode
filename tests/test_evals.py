@@ -1,7 +1,9 @@
+import shutil
 from pathlib import Path
 
 import pytest
 
+from minicode.evals import runner
 from minicode.evals.runner import cost_for, load_suite, summarize, verification_env
 
 
@@ -98,3 +100,142 @@ def test_summarize() -> None:
     assert summary["input_tokens"] == 30
     assert summary["cost_usd"] == 0.03
     assert summary["wall_time_s"] == 4.0
+
+
+def test_summarize_pass_at_k_and_trace_metrics() -> None:
+    results = [
+        {
+            "id": "a",
+            "baseline": "minicode-yolo",
+            "run": 0,
+            "passed": True,
+            "failure_reason": "passed",
+            "tool_calls": 1,
+            "usage": {},
+            "cost_usd": 0.0,
+            "duration_s": 1.0,
+            "trace_summary": {"approvals": 1, "blocked": 0},
+        },
+        {
+            "id": "a",
+            "baseline": "minicode-yolo",
+            "run": 1,
+            "passed": False,
+            "failure_reason": "loop",
+            "tool_calls": 3,
+            "usage": {},
+            "cost_usd": 0.0,
+            "duration_s": 1.0,
+            "trace_summary": {"approvals": 0, "blocked": 0},
+        },
+        {
+            "id": "a",
+            "baseline": "minicode-yolo",
+            "run": 2,
+            "passed": True,
+            "failure_reason": "passed",
+            "tool_calls": 1,
+            "usage": {},
+            "cost_usd": 0.0,
+            "duration_s": 1.0,
+            "trace_summary": {"approvals": 2, "blocked": 1},
+        },
+        {
+            "id": "b",
+            "baseline": "minicode-yolo",
+            "run": 0,
+            "passed": False,
+            "failure_reason": "timeout",
+            "tool_calls": 0,
+            "usage": {},
+            "cost_usd": 0.0,
+            "duration_s": 2.0,
+            "trace_summary": {"approvals": 0, "blocked": 0},
+        },
+    ]
+
+    summary = summarize(results)
+
+    assert summary["tasks"] == 2
+    assert summary["runs"] == 4
+    assert summary["pass_at_1"] == 0.5
+    assert summary["pass_at_k"] == 0.5
+    assert summary["avg_approvals"] == 0.75
+    assert summary["avg_blocked"] == 0.25
+    assert summary["failure_counts"] == {"loop": 1, "timeout": 1}
+
+
+def test_run_task_classifies_permission_denied(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    task = load_suite("smoke")[0]
+
+    def fake_worker(*args, **kwargs):
+        return (
+            {
+                "ok": True,
+                "error": None,
+                "tool_calls": 1,
+                "usage": {},
+                "duration_s": 0.1,
+                "trace_summary": {"blocked": 1, "ran_tests": False},
+            },
+            "",
+        )
+
+    monkeypatch.setattr(runner, "run_worker", fake_worker)
+    monkeypatch.setattr(runner, "run_verify", lambda task, workspace: (False, "failed"))
+
+    result = runner.run_task(
+        task,
+        work_root=tmp_path,
+        model=None,
+        baseline="minicode-ask",
+        run_index=0,
+        pricing={},
+    )
+
+    assert result["failure_reason"] == "permission_denied"
+
+
+def test_run_suite_repeats_each_task(monkeypatch: pytest.MonkeyPatch) -> None:
+    task = load_suite("smoke")[0]
+    calls: list[int] = []
+
+    monkeypatch.setattr(runner, "load_suite", lambda suite: [task])
+
+    def fake_run_task(task, **kwargs):
+        calls.append(kwargs["run_index"])
+        return {
+            "id": task.id,
+            "baseline": kwargs["baseline"],
+            "run": kwargs["run_index"],
+            "passed": True,
+            "worker_ok": True,
+            "verify_ok": True,
+            "error": None,
+            "tool_calls": 0,
+            "usage": {},
+            "cost_usd": 0.0,
+            "duration_s": 0.0,
+            "verify_output": "",
+            "worker_output": "",
+            "final": "",
+            "trace_summary": {},
+            "failure_reason": "passed",
+        }
+
+    monkeypatch.setattr(runner, "run_task", fake_run_task)
+
+    report = runner.run_suite(
+        suite="smoke",
+        model=None,
+        baselines=["full", "bare"],
+        runs=2,
+        keep=True,
+    )
+
+    assert report["runs"] == 2
+    assert len(report["tasks"]) == 4
+    assert calls == [0, 1, 0, 1]
+    shutil.rmtree(report["work_dir"])

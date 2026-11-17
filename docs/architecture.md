@@ -151,13 +151,15 @@ flowchart TD
 
 实际代码在 [`src/minicode/evals/runner.py`](../src/minicode/evals/runner.py)：
 
-- worker 在独立子进程中运行 `build_agent(..., permission_mode="yolo")`。
+- worker 在独立子进程中运行 baseline 配置的 agent；MiniCode baseline 使用
+  `build_agent()`，`minicode-ask` 还会走脚本化审批，`deepagents-default`
+  使用原生 Deep Agents。
 - verify 使用 `verification_env()`，不继承 provider key，并把 fixture
   workspace 加入 `PYTHONPATH`。
 - hidden tests 被复制到 workspace 之外的 sibling 目录，使用
   `evals/pytest-safe.ini` 运行。
-- 退出码由 `evals/cli.py` 决定：单独跑 `bare` 时失败也返回 0，`full` / `all`
-  以非 bare 结果为准。
+- 退出码由 `evals/cli.py` 决定：单独跑 `bare` 时失败也返回 0，`full` /
+  `all` / `matrix` 以非 bare 结果为准。
 
 评测隔离是**约定级**的，不是对抗性 sandbox。详见
 [`evals/README.md`](../evals/README.md)。

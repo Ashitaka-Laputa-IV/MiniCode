@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from minicode.evals import cli
+from minicode.evals.baselines import MATRIX_BASELINES
 
 
 def make_report(
@@ -42,6 +43,7 @@ def test_parser_defaults() -> None:
     args = cli.build_parser().parse_args([])
     assert args.suite == "smoke"
     assert args.baseline == "full"
+    assert args.runs == 1
     assert args.model is None
     assert args.task is None
     assert args.json is None
@@ -126,3 +128,22 @@ def test_main_writes_json_and_keeps_work_dir(
     captured = capsys.readouterr()
     assert "report:" in captured.out
     assert "work dir:" in captured.out
+
+
+def test_main_matrix_and_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+    code, calls = run_main(
+        monkeypatch,
+        make_report(1, 1),
+        ["--baseline", "matrix", "--runs", "2"],
+    )
+
+    assert code == 0
+    assert calls["baselines"] == MATRIX_BASELINES
+    assert calls["runs"] == 2
+
+
+def test_main_rejects_non_positive_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "load_env", lambda: None)
+
+    with pytest.raises(SystemExit):
+        cli.main(["--runs", "0"])

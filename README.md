@@ -99,7 +99,12 @@ refactors, cross-file changes, and small engineering changes.
 
 ```bash
 uv run minicode eval --baseline all --json evals/results/smoke-all.json
+uv run minicode eval --baseline matrix --runs 1 --json evals/results/smoke-matrix.json
 ```
+
+`all` keeps the legacy `full` + `bare` pair. `matrix` runs the current
+baseline matrix, and `--runs N` adds pass@k aggregation and failure
+classification. See [`evals/README.md`](evals/README.md) for baseline definitions.
 
 Latest local run (2026-11-08, `deepseek:deepseek-flash`, one attempt per task):
 
