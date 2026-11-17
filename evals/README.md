@@ -21,7 +21,9 @@ uv run minicode eval --suite recovery --baseline minicode-ask --json evals/resul
 
 - `full` is the legacy alias for `minicode-yolo`.
 - `all` still means `full` + `bare`.
-- `matrix` runs the current six-baseline matrix.
+- `matrix` runs the current six-baseline matrix. It is informational by default
+  and exits 0 even when individual baselines fail; add `--strict` to make
+  non-bare failures return a nonzero status.
 - `--runs N` repeats every task in every selected baseline. `pass@k` uses
   `k = runs`; the default is 1.
 - `--suite security` runs the separate security suite and requires

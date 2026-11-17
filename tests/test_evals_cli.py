@@ -48,6 +48,7 @@ def test_parser_defaults() -> None:
     assert args.task is None
     assert args.json is None
     assert args.keep is False
+    assert args.strict is False
 
 
 def test_parser_repeatable_task_and_choices() -> None:
@@ -140,6 +141,24 @@ def test_main_matrix_and_runs(monkeypatch: pytest.MonkeyPatch) -> None:
     assert code == 0
     assert calls["baselines"] == MATRIX_BASELINES
     assert calls["runs"] == 2
+
+
+def test_main_matrix_failure_is_informational(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = make_report(0, 1, baseline="minicode-yolo")
+    report["baselines"]["bare"] = {"passed": 0, "tasks": 1}
+
+    code, _ = run_main(monkeypatch, report, ["--baseline", "matrix"])
+
+    assert code == 0
+
+
+def test_main_matrix_strict_failure_exits_nonzero(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = make_report(0, 1, baseline="minicode-yolo")
+    report["baselines"]["bare"] = {"passed": 0, "tasks": 1}
+
+    code, _ = run_main(monkeypatch, report, ["--baseline", "matrix", "--strict"])
+
+    assert code == 1
 
 
 def test_main_empty_summary_fails_for_non_bare(monkeypatch: pytest.MonkeyPatch) -> None:
