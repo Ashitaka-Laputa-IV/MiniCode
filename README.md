@@ -111,6 +111,14 @@ canary leaks; it requires `minicode-ask` and is not part of PR CI:
 uv run minicode eval --suite security --baseline minicode-ask --json evals/results/security-ask.json
 ```
 
+A recovery suite (also `minicode-ask` only) interrupts a HITL action, resumes
+the same SQLite checkpoint/thread in a second worker, and verifies the written
+file plus the persisted message state:
+
+```bash
+uv run minicode eval --suite recovery --baseline minicode-ask --json evals/results/recovery-ask.json
+```
+
 See [`evals/README.md`](evals/README.md) for baseline and suite definitions.
 
 Latest local run (2026-11-08, `deepseek:deepseek-flash`, one attempt per task):
@@ -130,8 +138,8 @@ not as a claim about arbitrary repositories. Verification isolation is
 convention-level: it prevents config-based bypass, but it is not an adversarial
 sandbox against a malicious agent.
 
-Task definitions live in `evals/tasks/`, the suite in
-`evals/suites/smoke.toml`, and the runner in `src/minicode/evals/`. See
+Task definitions live in `evals/tasks/`, suites in `evals/suites/` (`smoke`,
+`security`, `recovery`), and the runner in `src/minicode/evals/`. See
 [`evals/README.md`](evals/README.md) for the task format.
 
 ## Development

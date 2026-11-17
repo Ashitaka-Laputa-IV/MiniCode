@@ -79,6 +79,49 @@ class HitlUsageAgent:
             yield {"__interrupt__": [FakeInterrupt()]}
 
 
+class PausingAgent:
+    """Interrupt once and stay paused unless a resume command arrives."""
+
+    def __init__(self) -> None:
+        self.resume_payload: Any = None
+
+    def stream(self, input: Any, stream_mode: str, config: Any = None):
+        assert stream_mode == "updates"
+        if isinstance(input, Command):
+            self.resume_payload = input.resume
+            yield {"model": {"messages": [ai_message(content="resumed")]}}
+            return
+        assert input == {"messages": [{"role": "user", "content": "prompt"}]}
+        yield {
+            "model": {
+                "messages": [
+                    ai_message(
+                        tool_calls=[
+                            {"name": "write_file", "id": "call-1", "args": {"file_path": "/x"}}
+                        ],
+                        usage_metadata={"input_tokens": 7, "output_tokens": 2},
+                    )
+                ]
+            }
+        }
+        yield {"__interrupt__": [FakeInterrupt()]}
+
+
+class ResumeOnlyAgent:
+    """Assert the stream starts with Command(resume=...) instead of a prompt."""
+
+    def __init__(self) -> None:
+        self.input: Any = None
+        self.resume_payload: Any = None
+
+    def stream(self, input: Any, stream_mode: str, config: Any = None):
+        assert stream_mode == "updates"
+        self.input = input
+        assert isinstance(input, Command)
+        self.resume_payload = input.resume
+        yield {"model": {"messages": [ai_message(content="done")]}}
+
+
 class FakeModel:
     def invoke(self, prompt: str) -> Any:
         assert prompt == "prompt"
@@ -322,6 +365,9 @@ def test_worker_main_full(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
         "trace_path": None,
         "checkpoint_db": None,
         "thread_id": None,
+        "pause_on_interrupt": False,
+        "resume_decisions": None,
+        "disable_checkpoint": False,
     }
 
 
@@ -365,6 +411,59 @@ def test_worker_main_bare(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
     assert calls == {"prompt": "task", "model": "deepseek:deepseek-flash"}
 
 
+def test_worker_main_resume_flags(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    prompt = tmp_path / "prompt.md"
+    prompt.write_text("task", encoding="utf-8")
+    output = tmp_path / "worker.json"
+    calls: dict = {}
+
+    def fake_run_minicode(*args: Any, **kwargs: Any):
+        calls.update(kwargs)
+        return {
+            "final": "resumed",
+            "tool_calls": 1,
+            "usage": {"input_tokens": 5},
+            "duration_s": 0.1,
+            "interrupted": False,
+            "interrupt_id": None,
+            "thread_id": "thread-1",
+            "checkpoint_db": str(tmp_path / "checkpoint.sqlite"),
+        }
+
+    monkeypatch.setattr(worker, "run_minicode", fake_run_minicode)
+
+    assert (
+        worker.main(
+            [
+                "--prompt-file",
+                str(prompt),
+                "--root",
+                str(tmp_path),
+                "--output",
+                str(output),
+                "--baseline",
+                "minicode-ask",
+                "--checkpoint-db",
+                str(tmp_path / "checkpoint.sqlite"),
+                "--thread",
+                "thread-1",
+                "--pause-on-interrupt",
+                "--resume-approve",
+                "--disable-checkpoint",
+            ]
+        )
+        == 0
+    )
+    data = json.loads(output.read_text(encoding="utf-8"))
+    assert calls["pause_on_interrupt"] is True
+    assert calls["resume_decisions"] == {"decisions": [{"type": "approve"}]}
+    assert calls["disable_checkpoint"] is True
+    assert data["interrupted"] is False
+    assert data["interrupt_id"] is None
+    assert data["thread_id"] == "thread-1"
+    assert data["checkpoint_db"] == str(tmp_path / "checkpoint.sqlite")
+
+
 def test_worker_main_records_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     prompt = tmp_path / "prompt.md"
     prompt.write_text("task", encoding="utf-8")
@@ -403,6 +502,10 @@ def test_worker_main_records_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert data["usage"] == {"input_tokens": 12, "output_tokens": 4}
     assert data["trace_summary"]["tool_calls"] == 1
     assert data["trace_summary"]["usage"] == {"input_tokens": 12, "output_tokens": 4}
+    assert data["interrupted"] is False
+    assert data["interrupt_id"] is None
+    assert data["thread_id"] is None
+    assert data["checkpoint_db"] is None
 
 
 def test_run_agent_stream_resumes_with_scripted_approval() -> None:
@@ -418,10 +521,55 @@ def test_run_agent_stream_resumes_with_scripted_approval() -> None:
     )
 
     assert result["final"] == "done"
+    assert result["interrupted"] is False
     assert agent.resumed is True
     assert agent.resume_payload == {"decisions": [{"type": "approve"}]}
     assert trace.summary()["approvals"] == 1
     assert trace.summary()["rejections"] == 0
+
+
+def test_run_agent_stream_pauses_without_resuming() -> None:
+    agent = PausingAgent()
+    trace = Trace()
+
+    result = worker.run_agent_stream(
+        agent,
+        "prompt",
+        max_tool_calls=5,
+        trace=trace,
+        approval_policy="eval",
+        pause_on_interrupt=True,
+    )
+
+    assert result["interrupted"] is True
+    assert result["interrupt_id"] == "interrupt-1"
+    assert result["interrupt_ids"] == ["interrupt-1"]
+    assert result["pending_actions"] == [{"name": "write_file", "args": {"file_path": "/app.py"}}]
+    assert result["tool_calls"] == 1
+    assert result["usage"] == {"input_tokens": 7, "output_tokens": 2}
+    assert result["final"] == ""
+    assert agent.resume_payload is None
+    assert trace.summary()["approvals"] == 0
+    assert any(event.type == "pause" for event in trace.events)
+
+
+def test_run_agent_stream_starts_with_resume_decisions() -> None:
+    agent = ResumeOnlyAgent()
+    trace = Trace()
+
+    result = worker.run_agent_stream(
+        agent,
+        "ignored",
+        max_tool_calls=5,
+        trace=trace,
+        resume_decisions={"decisions": [{"type": "approve"}]},
+    )
+
+    assert isinstance(agent.input, Command)
+    assert agent.resume_payload == {"decisions": [{"type": "approve"}]}
+    assert result["final"] == "done"
+    assert result["interrupted"] is False
+    assert trace.events[0].type == "resume_input"
 
 
 def test_run_agent_stream_does_not_double_count_replayed_usage() -> None:
@@ -509,6 +657,65 @@ def test_run_minicode_no_checkpoint_disables_checkpoint(
     )
 
     assert captured["checkpoint"] is False
+
+
+def test_run_minicode_disable_checkpoint_overrides_baseline(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict = {}
+
+    def fake_build_agent(**kwargs: Any):
+        captured.update(kwargs)
+        return FakeAgent([])
+
+    monkeypatch.setattr(worker, "build_agent", fake_build_agent)
+
+    result = worker.run_minicode(
+        "prompt",
+        tmp_path,
+        None,
+        5,
+        baseline=resolve_baseline("minicode-ask"),
+        checkpoint_db=tmp_path / "checkpoint.sqlite",
+        thread_id="thread-1",
+        disable_checkpoint=True,
+    )
+
+    assert captured["checkpoint"] is False
+    assert captured["db_path"] is None
+    assert result["thread_id"] is None
+    assert result["checkpoint_db"] is None
+    assert result["interrupted"] is False
+    assert result["interrupt_id"] is None
+
+
+def test_run_minicode_passes_recovery_flags(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict = {}
+    agent = ResumeOnlyAgent()
+
+    def fake_build_agent(**kwargs: Any):
+        captured.update(kwargs)
+        return agent
+
+    monkeypatch.setattr(worker, "build_agent", fake_build_agent)
+
+    result = worker.run_minicode(
+        "prompt",
+        tmp_path,
+        None,
+        5,
+        baseline=resolve_baseline("minicode-ask"),
+        checkpoint_db=tmp_path / "checkpoint.sqlite",
+        thread_id="thread-1",
+        resume_decisions={"decisions": [{"type": "approve"}]},
+    )
+
+    assert captured["checkpoint"] is True
+    assert agent.resume_payload == {"decisions": [{"type": "approve"}]}
+    assert result["thread_id"] == "thread-1"
+    assert result["checkpoint_db"] == str(tmp_path / "checkpoint.sqlite")
 
 
 def test_run_minicode_no_subagents_disables_subagents(

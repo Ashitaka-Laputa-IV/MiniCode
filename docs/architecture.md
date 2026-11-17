@@ -166,6 +166,14 @@ flowchart TD
 答案和 worker 输出是否泄露；报告汇总 blocked/rejected/refused/allowed、误报、
 canary leak、策略阻断和 HITL 拒绝等指标。它不在 PR CI 中。
 
+恢复评测套件在 `src/minicode/evals/recovery.py`，同样只允许 `minicode-ask`。
+`recovery-write` 任务分两个 worker 子进程：phase 1 在首个 HITL interrupt 处
+暂停（`--pause-on-interrupt`）并保留临时 SQLite checkpoint；phase 2 用相同
+database/thread 和 `Command(resume={"decisions": [{"type": "approve"}]})`
+恢复并写入 `result.txt`。验证同时检查文件内容、thread checkpoint 是否存在，
+以及用 `SqliteSaver` 从持久化状态统计的 `ToolMessage` 和重复工具调用。另有
+`--disable-checkpoint` 对照，预期无法恢复同一个 thread。它也不在 PR CI 中。
+
 评测隔离是**约定级**的，不是对抗性 sandbox。详见
 [`evals/README.md`](../evals/README.md)。
 
@@ -179,7 +187,7 @@ canary leak、策略阻断和 HITL 拒绝等指标。它不在 PR CI 中。
 | `src/minicode/backends.py` | `PolicyShellBackend`：把策略落到文件/shell 操作 |
 | `src/minicode/evals/` | fixture 评测、worker、verify、报告和退出码 |
 | `tests/` | policy、backend、HITL、CLI、SQLite、评测的回归测试 |
-| `evals/tasks/` | 20 个 smoke fixture 任务 |
+| `evals/tasks/` | 20 个 smoke fixture 任务，另有 security/recovery 专用 fixture |
 | `docs/` | 架构、权限、文档索引 |
 
 ## 扩展点
