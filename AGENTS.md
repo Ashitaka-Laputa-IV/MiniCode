@@ -8,6 +8,14 @@
 - 一律使用 uv，不要用 `pip` 或全局 Python；虚拟环境 `.venv/` 由 uv 管理，已加入 `.gitignore`。
 - `dev` 已推送到 `origin`；PR 基分支为 `dev`，功能分支从 `origin/dev` 切出。
 
+## 文档
+
+- 架构：`docs/architecture.md`
+- 权限与新增工具：`docs/permissions.md`
+- 安全策略：`SECURITY.md`
+- 中文 README：`README.zh-CN.md`
+- 新增工具前先读 `docs/permissions.md` 的接入清单；权限行为变化时同步更新文档和测试。
+
 ## 常用命令
 
 - 同步依赖：`uv sync`
@@ -17,13 +25,10 @@
 - REPL 会话持久化到 SQLite（默认 `<root>/.minicode/checkpoints.sqlite`）；`--db` 指定数据库文件，`--thread` 选择会话；失败/中断/`/reset` 会清空当前 thread
 - 默认 thread `default`；同一 workspace 并行 REPL 要显式用不同 `--thread`/`--db`，避免 `database is locked` 或 checkpoint 交错
 - `.minicode/` 和 `*.sqlite*` 已忽略；数据库包含对话和工具输出，不要提交
-- 模型：`--model <provider:model>` 或环境变量 `MINICODE_MODEL`；默认 `deepseek:deepseek-flash`，需要 `DEEPSEEK_API_KEY`
+- 模型：`--model <provider:model>` 或环境变量 `MINICODE_MODEL`；默认 `deepseek:deepseek-flash`，需要 `DEEPSEEK_API_KEY`；OpenCode Go 用 `--model opencode-go:deepseek-v4.1-flash`，需要 `OPENCODE_GO_API_KEY`，可选 `OPENCODE_GO_SESSION`
 - 权限模式：`--permission-mode read-only|ask|yolo` 或 `MINICODE_PERMISSION_MODE`；默认 `ask`，非 TTY 下 gated action 会被拒绝
 - shell allow-list：`--shell-allow-list "git status,uv run pytest"` 或 `MINICODE_SHELL_ALLOW_LIST`；也支持 `recommended` / `all`
-- 审计日志：默认 `<root>/.minicode/audit.jsonl`，JSONL，记录 `policy` / `approval` / `result`；`--audit-log <path>` 或 `MINICODE_AUDIT_LOG` 指定，`--no-audit` 关闭
-- 审计内容经过 best-effort secret 脱敏，文件工具内容不落盘（只记 path 和 byte count），`execute` 记录脱敏后的 command；写失败会 warning 并继续（fail-open），日志不是 tamper-proof
-- `read-only` 模式默认仍写审计日志（安全记录）；需要完全只读时用 `--no-audit` 或 `--audit-log` 重定向。POSIX 下文件权限 0600、目录 0700
-- 权限策略是 guardrail，不是 sandbox；不可信任务仍需容器/VM。eval worker 在非交互环境显式使用 `yolo`，不写审计日志
+- 权限策略是 guardrail，不是 sandbox；不可信任务仍需容器/VM。eval worker 按 baseline 配置权限：`minicode-yolo`/`full`/`minicode-no-checkpoint`/`minicode-no-subagents` 用 `yolo`，`minicode-ask` 用 `ask` + 脚本化审批，`deepagents-default` 不经过 `Policy`/HITL
 - 环境变量：CLI 自动加载当前目录或祖先目录的 `.env`，但只应用 `MINICODE_MODEL` 和已知 provider key，忽略 base URL/endpoint 类变量；shell 已有变量优先。`.env` 已被忽略，提交 `.env.example`，不要把真实 key 写入版本库
 - 添加依赖：`uv add <pkg>`；开发依赖：`uv add --dev <pkg>`
 - 更新锁文件：`uv lock`（升级用 `uv lock --upgrade`）
@@ -32,9 +37,11 @@
 - live 测试：`uv run pytest -m live -q`；默认 `pytest` 不跑，仅支持 DeepSeek，需要 `DEEPSEEK_API_KEY`，缺 key 会失败，有 API 成本
 - 代码检查：`uv run ruff check .`；格式检查：`uv run ruff format --check .`；格式化：`uv run ruff format .`
 - 类型检查：`uv run mypy src`
-- 任务评测：`uv run minicode eval --baseline full --json evals/results/smoke-full.json`；`--baseline all` 同时跑 `bare`；20 个 fixture 任务在 `evals/tasks/`
+- 任务评测：`uv run minicode eval --baseline full --json evals/results/smoke-full.json`；`--baseline all` 保持 `full` + `bare`；`--baseline matrix --runs 1` 跑完整矩阵，`--runs N` 生成 pass@k；20 个 fixture 任务在 `evals/tasks/`
+- 安全评测：`uv run minicode eval --suite security --baseline minicode-ask --json evals/results/security-ask.json`；18 个 case（14 malicious + 4 controls），必须用 `minicode-ask`，canary 运行时生成
+- 恢复评测：`uv run minicode eval --suite recovery --baseline minicode-ask --json evals/results/recovery-ask.json`；1 个 `recovery-write` fixture，两阶段共享临时 SQLite checkpoint/thread：phase 1 在首个 HITL interrupt 暂停，phase 2 用 `Command(resume=...)` 批准并完成；另有 `disable_checkpoint` 对照，必须用 `minicode-ask`
 - 评测结果目录 `evals/results/` 已忽略；修改任务/runner 后先跑 `--task <id>` 再跑 smoke
-- smoke 有 API 成本和耗时，PR CI 不跑；只在需要回归数据或改动 eval runner 时手动跑
+- smoke、安全与恢复评测有 API 成本和耗时，PR CI 不跑；只在需要回归数据或改动 eval runner 时手动跑
 - 临时脚本：`uv run python -c "..."`
 
 ## CI

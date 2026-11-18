@@ -2,9 +2,18 @@
 
 [![CI](https://github.com/Ashitaka-Laputa-IV/MiniCode/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/Ashitaka-Laputa-IV/MiniCode/actions/workflows/ci.yml)
 
+English | [简体中文](README.zh-CN.md)
+
 Minimal coding agent built on the [Deep Agents](https://docs.langchain.com/oss/python/deepagents/overview) harness.
 
 It runs a task or an interactive session against a workspace using the harness's filesystem tools, shell execution, planning, and subagents.
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Permissions and adding tools](docs/permissions.md)
+- [Chinese documentation](README.zh-CN.md)
+- [Security policy](SECURITY.md)
 
 ## Requirements
 
@@ -79,6 +88,17 @@ uv run minicode --model deepseek:deepseek-reasoner "review this change"
 
 Install that provider's integration package first, for example `uv add langchain-anthropic` or `uv add langchain-openai`.
 
+OpenCode Go models are supported directly with `opencode-go:<model-id>` and
+`OPENCODE_GO_API_KEY`. For example:
+
+```bash
+uv run minicode --model opencode-go:deepseek-v4.1-flash "review this change"
+```
+
+The provider sends the required `x-opencode-session` header. Set
+`OPENCODE_GO_SESSION` to keep a stable session, or MiniCode generates one per
+process.
+
 When the selected model emits reasoning, MiniCode prints it to stderr as a dim
 `thinking` block before tool calls and the final answer. stdout still contains
 only the final answer. Use `--no-thinking` to suppress it.
@@ -90,7 +110,27 @@ refactors, cross-file changes, and small engineering changes.
 
 ```bash
 uv run minicode eval --baseline all --json evals/results/smoke-all.json
+uv run minicode eval --baseline matrix --runs 1 --json evals/results/smoke-matrix.json
 ```
+
+`all` keeps the legacy `full` + `bare` pair. `matrix` runs the current
+baseline matrix, and `--runs N` adds pass@k aggregation and failure
+classification. A separate security suite checks dangerous-command blocking and
+canary leaks; it requires `minicode-ask` and is not part of PR CI:
+
+```bash
+uv run minicode eval --suite security --baseline minicode-ask --json evals/results/security-ask.json
+```
+
+A recovery suite (also `minicode-ask` only) interrupts a HITL action, resumes
+the same SQLite checkpoint/thread in a second worker, and verifies the written
+file plus the persisted message state:
+
+```bash
+uv run minicode eval --suite recovery --baseline minicode-ask --json evals/results/recovery-ask.json
+```
+
+See [`evals/README.md`](evals/README.md) for baseline and suite definitions.
 
 Latest local run (2026-11-08, `deepseek:deepseek-flash`, one attempt per task):
 
@@ -99,14 +139,18 @@ Latest local run (2026-11-08, `deepseek:deepseek-flash`, one attempt per task):
 | `full` (MiniCode) | 20/20 (100%) | 11.2 | 664,332 / 28,954 | $0.0852 | 585.9s |
 | `bare` (model only) | 0/20 (0%) | 0.0 | 1,323 / 10,334 | $0.0117 | 240.1s |
 
+The `full` row above predates the baseline matrix and used the old `full`
+configuration without checkpointing. The current `full` alias maps to
+`minicode-yolo`, which enables checkpointing.
+
 This is a **smoke suite**, not a general coding benchmark. The tasks are small
 and selected by the same repository; use the numbers for regression tracking,
 not as a claim about arbitrary repositories. Verification isolation is
 convention-level: it prevents config-based bypass, but it is not an adversarial
 sandbox against a malicious agent.
 
-Task definitions live in `evals/tasks/`, the suite in
-`evals/suites/smoke.toml`, and the runner in `src/minicode/evals/`. See
+Task definitions live in `evals/tasks/`, suites in `evals/suites/` (`smoke`,
+`security`, `recovery`), and the runner in `src/minicode/evals/`. See
 [`evals/README.md`](evals/README.md) for the task format.
 
 ## Development
@@ -163,38 +207,8 @@ from the shell environment; the `.env` loader intentionally applies only the
 model and provider keys. `--shell-allow-list` also accepts `recommended` or
 `all`.
 
-### Audit log
-
-Each session appends redacted JSONL records to
-`<workspace>/.minicode/audit.jsonl`. Use `--audit-log <path>` to choose another
-file (relative paths resolve under the workspace) or `--no-audit` to disable
-logging. `MINICODE_AUDIT_LOG` provides the path from the shell environment.
-
-The log links three event types so a tool call can be traced end to end:
-
-- `policy`: tool name, mode, decision (`allow` / `ask` / `deny`), reason, and
-  audit-safe arguments.
-- `approval`: approver name, decision, and reason. Non-TTY rejections record
-  `approver: null`.
-- `result`: success flag, duration, exit code for shell commands, error, and
-  file path/byte counts for file writes.
-
-Commands and argument strings pass through best-effort secret redaction
-(provider keys, GitHub/Slack/AWS/Google tokens, bearer headers, URL passwords,
-JSON/Python dict keys, and common `key=value` assignments). Unknown tool string
-arguments are redacted and truncated to 200 characters. File-tool contents are
-not written to the log; `write_file` and `edit_file` record only the path and
-byte count. `execute` records the redacted command text, which may itself embed
-file content (for example a heredoc or `python -c` script). Redaction cannot
-recognize every custom secret format, so do not treat the log as a safe place
-for arbitrary data.
-
-Audit writes fail open: if the log cannot be written, MiniCode prints one
-warning to stderr and keeps working. The file is append-only and local but not
-tamper-proof; it is intended for local traceability, not compliance. The log is
-a security record, so `read-only` mode still writes it by default; use
-`--no-audit` or `--audit-log` to disable or redirect it. On POSIX the audit file
-is created with mode `0600` and its directory with `0700`.
+For the full decision order, HITL behavior, and a checklist for adding tools,
+see [`docs/permissions.md`](docs/permissions.md).
 
 ## Safety
 
@@ -208,7 +222,14 @@ Shell commands receive a filtered environment: common OS/PATH/temp variables
 plus Python and uv paths. Provider API keys are not inherited by the agent's
 shell commands.
 
+See [`SECURITY.md`](SECURITY.md) for the threat model, known limitations, and
+reporting process.
+
 ## Project tooling
 
 - MCP servers: `docs-langchain`, `reference-langchain` (see `opencode.json` for OpenCode, `.github/mcp.json` for GitHub Copilot CLI and the Copilot app)
 - Project skill: `caveman` under `.agents/skills/` (see `AGENTS.md`)
+
+## License
+
+[MIT](LICENSE)

@@ -26,6 +26,17 @@ on:
           - full
           - bare
           - all
+          - matrix
+          - deepagents-default
+          - minicode-yolo
+          - minicode-ask
+          - minicode-no-checkpoint
+          - minicode-no-subagents
+      runs:
+        description: Runs per task and baseline (pass@k; use 1 for a smoke run)
+        required: false
+        default: "1"
+        type: string
       task:
         description: Optional single task id (leave empty to run the whole suite)
         required: false
@@ -42,7 +53,7 @@ jobs:
   eval:
     name: Run live eval
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 240
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -72,11 +83,13 @@ jobs:
           EVAL_SUITE: ${{ inputs.suite }}
           EVAL_MODEL: ${{ inputs.model }}
           EVAL_BASELINE: ${{ inputs.baseline }}
+          EVAL_RUNS: ${{ inputs.runs }}
           EVAL_TASK: ${{ inputs.task }}
         run: |
           args=(
             --suite "$EVAL_SUITE"
             --baseline "$EVAL_BASELINE"
+            --runs "$EVAL_RUNS"
             --model "$EVAL_MODEL"
             --json "evals/results/live-${GITHUB_RUN_ID}.json"
           )

@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from minicode.evals import cli
+from minicode.evals.baselines import MATRIX_BASELINES
 
 
 def make_report(
@@ -42,10 +43,12 @@ def test_parser_defaults() -> None:
     args = cli.build_parser().parse_args([])
     assert args.suite == "smoke"
     assert args.baseline == "full"
+    assert args.runs == 1
     assert args.model is None
     assert args.task is None
     assert args.json is None
     assert args.keep is False
+    assert args.strict is False
 
 
 def test_parser_repeatable_task_and_choices() -> None:
@@ -126,3 +129,163 @@ def test_main_writes_json_and_keeps_work_dir(
     captured = capsys.readouterr()
     assert "report:" in captured.out
     assert "work dir:" in captured.out
+
+
+def test_main_matrix_and_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+    code, calls = run_main(
+        monkeypatch,
+        make_report(1, 1),
+        ["--baseline", "matrix", "--runs", "2"],
+    )
+
+    assert code == 0
+    assert calls["baselines"] == MATRIX_BASELINES
+    assert calls["runs"] == 2
+
+
+def test_main_matrix_failure_is_informational(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = make_report(0, 1, baseline="minicode-yolo")
+    report["baselines"]["bare"] = {"passed": 0, "tasks": 1}
+
+    code, _ = run_main(monkeypatch, report, ["--baseline", "matrix"])
+
+    assert code == 0
+
+
+def test_main_matrix_strict_failure_exits_nonzero(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = make_report(0, 1, baseline="minicode-yolo")
+    report["baselines"]["bare"] = {"passed": 0, "tasks": 1}
+
+    code, _ = run_main(monkeypatch, report, ["--baseline", "matrix", "--strict"])
+
+    assert code == 1
+
+
+def test_main_empty_summary_fails_for_non_bare(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = make_report(0, 0)
+    report["baselines"]["full"] = {}
+
+    code, _ = run_main(monkeypatch, report)
+
+    assert code == 1
+
+
+def test_main_empty_summary_is_zero_for_bare(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = make_report(0, 0, baseline="bare")
+    report["baselines"]["bare"] = {}
+
+    code, _ = run_main(monkeypatch, report, ["--baseline", "bare"])
+
+    assert code == 0
+
+
+def test_main_runs_two_all_passed(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = make_report(4, 2)
+    report["runs"] = 2
+    report["baselines"]["full"]["runs"] = 4
+
+    code, calls = run_main(monkeypatch, report, ["--runs", "2"])
+
+    assert code == 0
+    assert calls["runs"] == 2
+
+
+def test_main_rejects_non_positive_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "load_env", lambda: None)
+
+    with pytest.raises(SystemExit):
+        cli.main(["--runs", "0"])
+
+
+def test_security_suite_requires_ask(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "load_env", lambda: None)
+    monkeypatch.setattr(cli, "resolve_model", lambda model=None: model or "test-model")
+
+    with pytest.raises(SystemExit, match="minicode-ask"):
+        cli.main(["--suite", "security"])
+
+
+def test_security_suite_dispatches_with_ask(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = {
+        "suite": "security",
+        "summary": {"total": 1, "failed": 0},
+        "work_dir": None,
+    }
+    calls: dict = {}
+    monkeypatch.setattr(cli, "load_env", lambda: None)
+    monkeypatch.setattr(cli, "resolve_model", lambda model=None: model or "test-model")
+    monkeypatch.setattr(
+        cli,
+        "run_security_suite",
+        lambda **kwargs: calls.update(kwargs) or report,
+    )
+    monkeypatch.setattr(cli, "print_security_report", lambda result: None)
+
+    code = cli.main(["--suite", "security", "--baseline", "minicode-ask"])
+
+    assert code == 0
+    assert calls["model"] == "test-model"
+    assert calls["runs"] == 1
+
+
+def test_security_suite_failure_exits_nonzero(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = {
+        "suite": "security",
+        "summary": {"total": 1, "failed": 1},
+        "work_dir": None,
+    }
+    monkeypatch.setattr(cli, "load_env", lambda: None)
+    monkeypatch.setattr(cli, "resolve_model", lambda model=None: model or "test-model")
+    monkeypatch.setattr(cli, "run_security_suite", lambda **kwargs: report)
+    monkeypatch.setattr(cli, "print_security_report", lambda result: None)
+
+    code = cli.main(["--suite", "security", "--baseline", "minicode-ask"])
+
+    assert code == 1
+
+
+def test_recovery_suite_requires_ask(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "load_env", lambda: None)
+    monkeypatch.setattr(cli, "resolve_model", lambda model=None: model or "test-model")
+
+    with pytest.raises(SystemExit, match="minicode-ask"):
+        cli.main(["--suite", "recovery"])
+
+
+def test_recovery_suite_dispatches_with_ask(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = {
+        "suite": "recovery",
+        "summary": {"total": 1, "failed": 0},
+        "work_dir": None,
+    }
+    calls: dict = {}
+    monkeypatch.setattr(cli, "load_env", lambda: None)
+    monkeypatch.setattr(cli, "resolve_model", lambda model=None: model or "test-model")
+    monkeypatch.setattr(
+        cli,
+        "run_recovery_suite",
+        lambda **kwargs: calls.update(kwargs) or report,
+    )
+    monkeypatch.setattr(cli, "print_recovery_report", lambda result: None)
+
+    code = cli.main(["--suite", "recovery", "--baseline", "minicode-ask"])
+
+    assert code == 0
+    assert calls["model"] == "test-model"
+    assert calls["runs"] == 1
+
+
+def test_recovery_suite_failure_exits_nonzero(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = {
+        "suite": "recovery",
+        "summary": {"total": 1, "failed": 1},
+        "work_dir": None,
+    }
+    monkeypatch.setattr(cli, "load_env", lambda: None)
+    monkeypatch.setattr(cli, "resolve_model", lambda model=None: model or "test-model")
+    monkeypatch.setattr(cli, "run_recovery_suite", lambda **kwargs: report)
+    monkeypatch.setattr(cli, "print_recovery_report", lambda result: None)
+
+    code = cli.main(["--suite", "recovery", "--baseline", "minicode-ask"])
+
+    assert code == 1

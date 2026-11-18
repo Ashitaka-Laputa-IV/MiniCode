@@ -1,21 +1,31 @@
 import os
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from minicode.agent import (
     DEFAULT_CHECKPOINT_DB,
     DEFAULT_MODEL,
+    OPENCODE_GO_BASE_URL,
     build_agent,
+    mode_hint,
+    resolve_chat_model,
     resolve_db_path,
     resolve_model,
     resolve_root,
     shell_env,
     shell_hint,
 )
+from minicode.middleware import NoSubagentsMiddleware
+from minicode.policy import PermissionMode
 
 
 def test_resolve_model_default(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -49,6 +59,47 @@ def test_resolve_model_whitespace_falls_back(monkeypatch: pytest.MonkeyPatch) ->
     assert resolve_model("   ") == DEFAULT_MODEL
 
 
+def test_resolve_model_opencode_go(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENCODE_GO_API_KEY", "oc-test-key")
+    monkeypatch.setenv("OPENCODE_GO_SESSION", "session-123")
+
+    model = resolve_chat_model("opencode-go:deepseek-v4.1-flash")
+
+    assert isinstance(model, ChatOpenAI)
+    assert model.model_name == "deepseek-v4.1-flash"
+    assert model.openai_api_base == OPENCODE_GO_BASE_URL
+    assert model.default_headers == {
+        "x-opencode-session": "session-123",
+        "User-Agent": "minicode/0.1.0",
+    }
+    assert model.stream_usage is True
+
+
+def test_resolve_model_opencode_go_generates_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENCODE_GO_API_KEY", "oc-test-key")
+    monkeypatch.delenv("OPENCODE_GO_SESSION", raising=False)
+
+    model = resolve_chat_model("opencode-go:deepseek-v4.1-flash")
+
+    assert isinstance(model, ChatOpenAI)
+    assert model.default_headers is not None
+    assert model.default_headers["x-opencode-session"].startswith("minicode-")
+
+
+def test_resolve_model_opencode_go_requires_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENCODE_GO_API_KEY", raising=False)
+
+    with pytest.raises(ValueError, match="OPENCODE_GO_API_KEY"):
+        resolve_chat_model("opencode-go:deepseek-v4.1-flash")
+
+
+def test_resolve_model_opencode_go_requires_model_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENCODE_GO_API_KEY", "oc-test-key")
+
+    with pytest.raises(ValueError, match="model id"):
+        resolve_chat_model("opencode-go:")
+
+
 def test_resolve_root_missing(tmp_path: Path) -> None:
     missing = tmp_path / "missing"
     with pytest.raises(ValueError, match="not a directory"):
@@ -80,6 +131,83 @@ def test_build_agent_checkpointer_is_optional(
     assert isinstance(checkpointer, SqliteSaver)
     assert (tmp_path / DEFAULT_CHECKPOINT_DB).exists()
     checkpointer.conn.close()
+
+
+def test_build_agent_can_disable_subagents(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict = {}
+
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("minicode.agent.create_deep_agent", fake_create)
+
+    build_agent(root=tmp_path, permission_mode="yolo", subagents=False)
+    middleware = captured["middleware"]
+    assert len(middleware) == 1
+    assert isinstance(middleware[0], NoSubagentsMiddleware)
+
+    build_agent(root=tmp_path, permission_mode="yolo")
+    assert captured["middleware"] == []
+
+
+def test_build_agent_no_subagents_removes_task_tool_and_rejects_calls(
+    tmp_path: Path,
+) -> None:
+    seen_tools: list[str] = []
+
+    class TaskModel(BaseChatModel):
+        calls: int = 0
+
+        @property
+        def _llm_type(self) -> str:
+            return "task-model"
+
+        def bind_tools(self, tools: Any, **kwargs: Any) -> "TaskModel":
+            seen_tools.extend(
+                tool["name"] if isinstance(tool, dict) else getattr(tool, "name", "")
+                for tool in tools
+            )
+            return self
+
+        def _generate(
+            self,
+            messages: list[BaseMessage],
+            stop: list[str] | None = None,
+            run_manager: Any = None,
+            **kwargs: Any,
+        ) -> ChatResult:
+            self.calls += 1
+            if self.calls == 1:
+                message = AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": "task",
+                            "args": {"description": "inspect"},
+                            "id": "call-task",
+                        }
+                    ],
+                )
+            else:
+                message = AIMessage(content="done")
+            return ChatResult(generations=[ChatGeneration(message=message)])
+
+    agent = build_agent(
+        model=TaskModel(),
+        root=tmp_path,
+        permission_mode="yolo",
+        subagents=False,
+    )
+    result = agent.invoke({"messages": [{"role": "user", "content": "inspect"}]})
+
+    assert "task" not in seen_tools
+    tool_messages = [message for message in result["messages"] if isinstance(message, ToolMessage)]
+    assert tool_messages
+    assert tool_messages[-1].name == "task"
+    assert tool_messages[-1].status == "error"
+    assert "subagents are disabled" in str(tool_messages[-1].content)
+    assert result["messages"][-1].content == "done"
 
 
 def test_build_agent_read_only_has_no_hitl(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -201,3 +329,69 @@ def test_shell_hint_matches_platform() -> None:
         assert "cmd.exe" in hint
     else:
         assert "POSIX" in hint
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [
+        (PermissionMode.READ_ONLY, ("read-only", "Do not modify files", "denied")),
+        (PermissionMode.ASK, ("ask", "allow-list", "hard deny-list", "rejected")),
+        (PermissionMode.YOLO, ("yolo", "deny-list", "explicitly asks")),
+    ],
+)
+def test_mode_hint_matches_mode(mode: PermissionMode, expected: tuple[str, ...]) -> None:
+    hint = mode_hint(mode)
+    for text in expected:
+        assert text in hint
+
+
+def test_mode_hint_read_only_does_not_request_changes() -> None:
+    hint = mode_hint(PermissionMode.READ_ONLY)
+    assert "Make focused changes" not in hint
+    assert "Run the project's tests" not in hint
+
+
+def test_mode_hint_unknown_mode_is_conservative(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(PermissionMode, "parse", staticmethod(lambda value: object()))
+    hint = mode_hint("plan")
+    assert "not recognized" in hint
+    assert "Do not modify files" in hint
+
+
+def test_build_agent_passes_trace_sink_to_backend(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict = {}
+
+    class FakeBackend:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr("minicode.agent.PolicyShellBackend", FakeBackend)
+    monkeypatch.setattr("minicode.agent.create_deep_agent", lambda **kwargs: object())
+
+    def sink(event: str, data: dict) -> None:
+        return None
+
+    build_agent(root=tmp_path, permission_mode="yolo", trace_sink=sink)
+
+    assert captured["trace_sink"] is sink
+
+
+@pytest.mark.parametrize("mode", list(PermissionMode))
+def test_build_agent_prompt_matches_permission_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: PermissionMode
+) -> None:
+    captured: dict = {}
+
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("minicode.agent.create_deep_agent", fake_create)
+    build_agent(root=tmp_path, permission_mode=mode)
+
+    prompt = captured["system_prompt"]
+    assert mode_hint(mode) in prompt
+    assert "{guidance}" not in prompt
+    assert "run without confirmation" not in prompt
