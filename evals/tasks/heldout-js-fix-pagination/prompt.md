@@ -1,0 +1,1 @@
+`paginate` in `src/pagination.js` computes `totalPages` with `Math.floor`, so a final partial page is dropped. For example, five items with two per page should report three pages, not two. Fix the page-count calculation, make an empty list report zero pages, and keep the current `items`, `page`, and exact-multiple behavior unchanged. Run the tests.

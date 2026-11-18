@@ -1,0 +1,1 @@
+`app.metrics` repeats the same zero-check and percentage calculation in `success_rate` and `failure_rate`. Extract that logic into a helper named `_rate(part, total)`. It should return `0.0` when `total == 0`; otherwise it should return `part / total * 100` rounded to one decimal. Call the helper from both public functions, keep their outputs unchanged, and run the tests.

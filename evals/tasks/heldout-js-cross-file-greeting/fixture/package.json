@@ -1,0 +1,8 @@
+{
+  "name": "heldout-js-cross-file-greeting",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
