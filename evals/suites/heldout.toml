@@ -1,0 +1,10 @@
+name = "heldout"
+tasks = [
+  "heldout-py-fix-chunk",
+  "heldout-py-cross-file-discount",
+  "heldout-py-regression-tests",
+  "heldout-py-refactor-rate",
+  "heldout-js-fix-pagination",
+  "heldout-js-cross-file-greeting",
+  "heldout-js-refactor-validation",
+]

@@ -2,11 +2,12 @@
 
 This directory contains the `smoke` suite: 20 small, self-contained tasks used
 to answer "does the agent actually change a repository correctly?". It also
-contains separate `security` and `recovery` suites for policy blocking/canary
-leak checks and interrupted-checkpoint recovery.
+contains a small `heldout` regression suite plus separate `security` and
+`recovery` suites for policy blocking/canary leak checks and
+interrupted-checkpoint recovery.
 
-The smoke suite is intentionally small. It is a regression signal, not a claim
-of general coding ability.
+The smoke and heldout suites are intentionally small. They are regression
+signals, not claims of general coding ability.
 
 ## Run
 
@@ -15,6 +16,8 @@ uv run minicode eval --baseline full --json evals/results/smoke-full.json
 uv run minicode eval --baseline bare --json evals/results/smoke-bare.json
 uv run minicode eval --baseline all --json evals/results/smoke-all.json
 uv run minicode eval --baseline matrix --runs 1 --json evals/results/smoke-matrix.json
+uv run minicode eval --suite heldout --baseline minicode-yolo --task <id>
+uv run minicode eval --suite heldout --baseline matrix --runs 1 --json evals/results/heldout-matrix.json
 uv run minicode eval --suite security --baseline minicode-ask --json evals/results/security-ask.json
 uv run minicode eval --suite recovery --baseline minicode-ask --json evals/results/recovery-ask.json
 ```
@@ -26,6 +29,8 @@ uv run minicode eval --suite recovery --baseline minicode-ask --json evals/resul
   non-bare failures return a nonzero status.
 - `--runs N` repeats every task in every selected baseline. `pass@k` uses
   `k = runs`; the default is 1.
+- `--suite heldout` runs the independent held-out regression suite. It is a
+  small manual check, not a benchmark ranking.
 - `--suite security` runs the separate security suite and requires
   `--baseline minicode-ask`.
 - `--suite recovery` runs the interrupted-checkpoint recovery suite and also
@@ -33,6 +38,37 @@ uv run minicode eval --suite recovery --baseline minicode-ask --json evals/resul
 
 Reports are written only when `--json` is passed. `evals/results/` is ignored by
 git.
+
+## Held-out suite
+
+`evals/suites/heldout.toml` is an independent regression suite with seven
+curated tasks. It is separate from `smoke.toml`: the task ids and fixtures do
+not overlap, and the smoke suite keeps its original 20 tasks.
+
+| task | language | category |
+| --- | --- | --- |
+| `heldout-py-fix-chunk` | Python | single-file bugfix |
+| `heldout-py-cross-file-discount` | Python | cross-file API change |
+| `heldout-py-regression-tests` | Python | test/regression addition |
+| `heldout-py-refactor-rate` | Python | small refactor |
+| `heldout-js-fix-pagination` | JavaScript | single-file bugfix |
+| `heldout-js-cross-file-greeting` | JavaScript | cross-file API change |
+| `heldout-js-refactor-validation` | JavaScript | small refactor |
+
+The Python tasks use hidden pytest tests. The JavaScript tasks use hidden
+`node --test` files and a small `verify.py`; they require only the Node
+executable, with no npm install, network access, or global packages.
+
+The current fixtures are hand-authored for this repository; they are not
+copies of an external repository. They are held out from prompt and policy
+tuning, so do not adjust prompts or rules against these tasks after they are
+added. Real-repo snapshots with pinned commits, licenses, and provenance are a
+follow-up; when those are added, record the source repository, license, pinned
+commit, and fixture-generation method alongside the task.
+
+This suite is deliberately small. Report pass rates, cost, wall time, and
+failure categories as a regression signal only, not as a general coding
+benchmark or a ranking against other agents.
 
 ## Baselines
 
@@ -232,7 +268,8 @@ the JSON report as an artifact. Live evals cost money and take several minutes,
 so do not add them to pull request checks.
 
 The security and recovery suites are not part of PR CI; run them manually with
-a model key. Both require `--baseline minicode-ask`.
+a model key. Both require `--baseline minicode-ask`. The heldout suite is also
+manual only and is not part of PR CI.
 
 ## Adding a task
 
@@ -240,8 +277,12 @@ a model key. Both require `--baseline minicode-ask`.
 2. Write `prompt.md` with an unambiguous requirement.
 3. Add `hidden/test_hidden.py` when verification should be hidden.
 4. Add an explicit `verify.py` when the check is not just "pytest passes".
-5. Add the task id to `evals/suites/smoke.toml`.
+5. Add the task id to the appropriate suite: `evals/suites/smoke.toml` or
+   `evals/suites/heldout.toml`.
 6. Run it with `--task <id>` before adding it to the suite.
 
 Keep tasks small and deterministic. Do not depend on the network from fixture
-tests; model calls are the only network dependency.
+tests; model calls are the only network dependency. Held-out tasks must stay
+independent from smoke, and their hidden checks must not be copied into the
+agent workspace during the run. For a JavaScript task, keep `hidden/` plus a
+`verify.py` that runs `node --test` against the hidden test file.

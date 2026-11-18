@@ -1,0 +1,1 @@
+`app.chunks.chunk` drops the final partial chunk. For example, `chunk([1, 2, 3], 2)` returns `[[1, 2]]` instead of `[[1, 2], [3]]`. Fix the function so it includes the trailing partial chunk, while keeping the current behavior for exact multiples and empty input. Run the tests.
