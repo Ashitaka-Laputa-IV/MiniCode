@@ -12,6 +12,7 @@
 | 新增一个会写文件或执行命令的工具，要改哪里？ | [权限与新增工具](permissions.md) |
 | 我要报告安全问题，或者部署到不可信代码上 | [SECURITY.md](../SECURITY.md) |
 | 我想跑评测或新增评测任务 | [evals/README.md](../evals/README.md) |
+| 最近一次六基线、安全和恢复评测结果 | [2026-11-18 评测结果](results-2026-11-18.md) |
 | 我要安装、运行或开发 | [README.zh-CN.md](../README.zh-CN.md) |
 
 ## 文档列表
@@ -23,6 +24,8 @@
 - [SECURITY.md](../SECURITY.md)：威胁模型、已有防护、已知限制和漏洞报告方式。
 - [README.zh-CN.md](../README.zh-CN.md)：安装、使用、REPL、评测和开发检查。
 - [evals/README.md](../evals/README.md)：任务格式、运行方式和评测隔离边界。
+- [2026-11-18 评测结果](results-2026-11-18.md)：六基线 pass@1/pass@3、
+  相对 `minicode-yolo` 的消融、安全与恢复结果，以及失败分析。
 
 ## 维护约定
 

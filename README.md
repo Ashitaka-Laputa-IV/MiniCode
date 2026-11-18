@@ -132,16 +132,30 @@ uv run minicode eval --suite recovery --baseline minicode-ask --json evals/resul
 
 See [`evals/README.md`](evals/README.md) for baseline and suite definitions.
 
-Latest local run (2026-11-08, `deepseek:deepseek-flash`, one attempt per task):
+### Eval results
+
+Latest six-baseline smoke matrix (2026-11-18, commit `c1bac6b`, model `opencode-go:deepseek-v4.1-flash`, 20 tasks). Four MiniCode baselines used three runs; `bare` and `deepagents-default` used one. Full metrics, representative failure analysis, security and recovery results, and limitations are in [`docs/results-2026-11-18.md`](docs/results-2026-11-18.md); raw JSON/logs are release assets in [`eval-results-2026-11-18`](https://github.com/Ashitaka-Laputa-IV/MiniCode/releases/tag/eval-results-2026-11-18), with discussion in [issue #35](https://github.com/Ashitaka-Laputa-IV/MiniCode/issues/35).
+
+| baseline | pass@1 | pass@3 | tool calls/run | cost | wall time |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `bare` | 0/20 (0.0%) | n/a | 0.00 | $0.0103 | 362.0s |
+| `deepagents-default` | 17/20 (85.0%) | n/a | 15.95 | $0.0427 | 1557.2s |
+| `minicode-yolo` | 60/60 (100.0%) | 100.0% | 12.00 | $0.0874 | 2640.6s |
+| `minicode-ask` | 59/60 (98.3%) | 100.0% | 12.33 | $0.0950 | 2779.8s |
+| `minicode-no-checkpoint` | 60/60 (100.0%) | 100.0% | 11.22 | $0.0806 | 2478.5s |
+| `minicode-no-subagents` | 60/60 (100.0%) | 100.0% | 12.17 | $0.0860 | 2577.9s |
+
+<details>
+<summary>Historical 2026-11-08 run (old `full` config)</summary>
 
 | baseline | pass@1 | tool calls/task | input/output tokens | cost | wall time |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | `full` (MiniCode) | 20/20 (100%) | 11.2 | 664,332 / 28,954 | $0.0852 | 585.9s |
 | `bare` (model only) | 0/20 (0%) | 0.0 | 1,323 / 10,334 | $0.0117 | 240.1s |
 
-The `full` row above predates the baseline matrix and used the old `full`
-configuration without checkpointing. The current `full` alias maps to
-`minicode-yolo`, which enables checkpointing.
+The `full` row above predates the baseline matrix and used the old `full` configuration without checkpointing. The current `full` alias maps to `minicode-yolo`, which enables checkpointing.
+
+</details>
 
 This is a **smoke suite**, not a general coding benchmark. The tasks are small
 and selected by the same repository; use the numbers for regression tracking,

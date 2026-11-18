@@ -101,6 +101,16 @@ scripted approver instead of stdin. `deepagents-default` and the yolo baselines
 run without HITL. Fixtures are copied to temporary directories, and the shell
 hard deny-list still applies to MiniCode baselines, but this is not a sandbox.
 
+## Results
+
+The current six-baseline smoke matrix, pass@3 ablation, security results,
+recovery results, failure analysis, and limitations are in
+[`docs/results-2026-11-18.md`](../docs/results-2026-11-18.md). Raw per-task JSON
+and logs are release assets in
+[`eval-results-2026-11-18`](https://github.com/Ashitaka-Laputa-IV/MiniCode/releases/tag/eval-results-2026-11-18),
+not committed here. The suite is small, model-backed, and manual; it is not a
+benchmark ranking and is not run in PR CI.
+
 ## Task layout
 
 ```text
