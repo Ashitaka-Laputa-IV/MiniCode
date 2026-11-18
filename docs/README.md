@@ -13,6 +13,8 @@
 | 我要报告安全问题，或者部署到不可信代码上 | [SECURITY.md](../SECURITY.md) |
 | 我想跑评测或新增评测任务 | [evals/README.md](../evals/README.md) |
 | 最近一次六基线、安全和恢复评测结果 | [2026-11-18 评测结果](results-2026-11-18.md) |
+| 最近一次 held-out 20 任务评测结果 | [2026-11-18 held-out 结果](heldout-results-2026-11-18.md) |
+| 真实仓库案例：requests Link header | [requests 案例](case-study-requests.md) |
 | 我要安装、运行或开发 | [README.zh-CN.md](../README.zh-CN.md) |
 
 ## 文档列表
@@ -26,6 +28,10 @@
 - [evals/README.md](../evals/README.md)：任务格式、运行方式和评测隔离边界。
 - [2026-11-18 评测结果](results-2026-11-18.md)：六基线 pass@1/pass@3、
   相对 `minicode-yolo` 的消融、安全与恢复结果，以及失败分析。
+- [2026-11-18 held-out 结果](heldout-results-2026-11-18.md)：20 个独立任务的
+  基线结果、失败分析和真实仓库任务说明。
+- [requests Link header 案例](case-study-requests.md)：从 `psf/requests` 最小化
+  的真实 bug、agent diff、审批中断、命令拒绝和编辑重试过程。
 
 ## 维护约定
 

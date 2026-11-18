@@ -94,6 +94,26 @@ Report pass rates, cost, wall time, and failure categories as a regression
 signal only, not as a general coding benchmark or a ranking against other
 agents.
 
+### Held-out results
+
+The first held-out run covers `minicode-yolo`, `minicode-ask`,
+`minicode-no-subagents`, and native `deepagents-default` on all 20 tasks.
+Pass rates, tokens, cost, failures, and limitations are in
+[`docs/heldout-results-2026-11-18.md`](../docs/heldout-results-2026-11-18.md).
+The real `psf/requests` task is also written up in
+[`docs/case-study-requests.md`](../docs/case-study-requests.md), including the
+approval interrupts, one rejected command, an edit retry after a parallel-write
+error, and final verification.
+
+| baseline | passed / task runs | pass@1 | pass@k | cost | wall time |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `minicode-yolo` | 40/40 | 100.0% | 100.0% | $0.0488 | 1061.8s |
+| `minicode-ask` | 20/20 | 100.0% | n/a | $0.0267 | 889.5s |
+| `minicode-no-subagents` | 20/20 | 100.0% | n/a | $0.0261 | 923.4s |
+| `deepagents-default` | 14/20 | 70.0% | n/a | $0.0409 | 1610.8s |
+
+`minicode-yolo` used two attempts per task; the other three baselines used one, so their pass@k is `n/a`. Raw JSON and logs are release assets in [`heldout-results-2026-11-18`](https://github.com/Ashitaka-Laputa-IV/MiniCode/releases/tag/heldout-results-2026-11-18).
+
 ## Baselines
 
 | baseline | description |

@@ -163,8 +163,27 @@ not as a claim about arbitrary repositories. Verification isolation is
 convention-level: it prevents config-based bypass, but it is not an adversarial
 sandbox against a malicious agent.
 
+### Held-out suite results
+
+The independent 20-task held-out suite (`11` Python, `9` JavaScript) was run on
+`minicode-yolo`, `minicode-ask`, `minicode-no-subagents`, and native
+`deepagents-default`. Full pass rates, tokens, cost, failure analysis, and
+limitations are in
+[`docs/heldout-results-2026-11-18.md`](docs/heldout-results-2026-11-18.md).
+The real `psf/requests` Link-header task is written up separately in
+[`docs/case-study-requests.md`](docs/case-study-requests.md).
+
+| baseline | passed / task runs | pass@1 | pass@k | cost | wall time |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `minicode-yolo` | 40/40 | 100.0% | 100.0% | $0.0488 | 1061.8s |
+| `minicode-ask` | 20/20 | 100.0% | n/a | $0.0267 | 889.5s |
+| `minicode-no-subagents` | 20/20 | 100.0% | n/a | $0.0261 | 923.4s |
+| `deepagents-default` | 14/20 | 70.0% | n/a | $0.0409 | 1610.8s |
+
+`minicode-yolo` used two attempts per task; the other three baselines used one, so their pass@k is `n/a`. Raw JSON and logs are release assets in [`heldout-results-2026-11-18`](https://github.com/Ashitaka-Laputa-IV/MiniCode/releases/tag/heldout-results-2026-11-18).
+
 Task definitions live in `evals/tasks/`, suites in `evals/suites/` (`smoke`,
-`security`, `recovery`), and the runner in `src/minicode/evals/`. See
+`heldout`, `security`, `recovery`), and the runner in `src/minicode/evals/`. See
 [`evals/README.md`](evals/README.md) for the task format.
 
 ## Development

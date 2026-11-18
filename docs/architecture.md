@@ -175,6 +175,13 @@ database/thread 和 `Command(resume={"decisions": [{"type": "approve"}]})`
 以及用 `SqliteSaver` 从持久化状态统计的 `ToolMessage` 和重复工具调用。另有
 `--disable-checkpoint` 对照，预期无法恢复同一个 thread。它也不在 PR CI 中。
 
+held-out 套件在 `evals/suites/heldout.toml`，与 smoke 完全分离（20 个任务：
+11 Python + 9 JavaScript）。Python 任务用隐藏 pytest，JavaScript 任务用
+`node --test` 加薄 `verify.py`，不依赖 npm、网络或全局包；其中一个任务是最小化的
+`psf/requests` Link header fixture，许可证和 pinned commit 记录在任务目录。
+结果和真实仓库 case study 在 [`heldout-results-2026-11-18.md`](heldout-results-2026-11-18.md)
+与 [`case-study-requests.md`](case-study-requests.md)。
+
 评测隔离是**约定级**的，不是对抗性 sandbox。详见
 [`evals/README.md`](../evals/README.md)。
 
