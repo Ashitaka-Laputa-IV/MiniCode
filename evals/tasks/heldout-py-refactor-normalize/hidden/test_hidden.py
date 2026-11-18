@@ -24,11 +24,16 @@ def test_public_outputs_are_unchanged():
 def test_public_functions_call_helper():
     source = (Path.cwd() / "app" / "records.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
-    calls = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "_field"
-    ]
-    assert len(calls) >= 2
+    functions = {
+        node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)
+    }
+    for name in ("normalize_name", "normalize_email"):
+        assert name in functions, f"missing function {name}"
+        calls = [
+            node
+            for node in ast.walk(functions[name])
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "_field"
+        ]
+        assert calls, f"{name} must call _field"
