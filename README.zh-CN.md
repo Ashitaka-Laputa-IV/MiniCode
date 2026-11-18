@@ -124,8 +124,8 @@ SQLite checkpoint/thread 在第二个 worker 中恢复，并验证写入文件�
 uv run minicode eval --suite recovery --baseline minicode-ask --json evals/results/recovery-ask.json
 ```
 
-最新评测数据、token 和成本见英文 README 的
-[Task evals](README.md#task-evals)（避免中英文两份数字漂移）。
+最新评测数据、token 和成本见
+[2026-11-18 评测结果](docs/results-2026-11-18.md)（避免中英文两份数字漂移）。
 
 这是一个 **smoke suite**，不是通用 coding benchmark。任务是小型、由本仓库
 自己挑选的，数字只用于回归跟踪。验证隔离是约定级的：它能阻止配置绕过，但不
