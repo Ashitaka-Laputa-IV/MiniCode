@@ -2,11 +2,11 @@
 
 This directory contains the `smoke` suite: 20 small, self-contained tasks used
 to answer "does the agent actually change a repository correctly?". It also
-contains a small `heldout` regression suite plus separate `security` and
+contains a 20-task `heldout` regression suite plus separate `security` and
 `recovery` suites for policy blocking/canary leak checks and
 interrupted-checkpoint recovery.
 
-The smoke and heldout suites are intentionally small. They are regression
+The smoke and heldout suites are deliberately scoped. They are regression
 signals, not claims of general coding ability.
 
 ## Run
@@ -41,34 +41,58 @@ git.
 
 ## Held-out suite
 
-`evals/suites/heldout.toml` is an independent regression suite with seven
-curated tasks. It is separate from `smoke.toml`: the task ids and fixtures do
-not overlap, and the smoke suite keeps its original 20 tasks.
+`evals/suites/heldout.toml` is an independent regression suite with 20 curated
+tasks: 11 Python and 9 JavaScript. It is separate from `smoke.toml`: the task
+ids and fixtures do not overlap, and the smoke suite keeps its original 20
+tasks.
 
 | task | language | category |
 | --- | --- | --- |
 | `heldout-py-fix-chunk` | Python | single-file bugfix |
+| `heldout-py-fix-duration` | Python | single-file bugfix |
+| `heldout-py-fix-merge-intervals` | Python | single-file bugfix |
 | `heldout-py-cross-file-discount` | Python | cross-file API change |
+| `heldout-py-cross-file-settings` | Python | cross-file API change |
+| `heldout-py-cross-file-shipping` | Python | cross-file API change |
 | `heldout-py-regression-tests` | Python | test/regression addition |
+| `heldout-py-add-tests-csv` | Python | test/regression addition |
 | `heldout-py-refactor-rate` | Python | small refactor |
+| `heldout-py-refactor-normalize` | Python | small refactor |
+| `heldout-real-requests-link-header` | Python | real-repo bugfix |
 | `heldout-js-fix-pagination` | JavaScript | single-file bugfix |
+| `heldout-js-fix-binary-search` | JavaScript | single-file bugfix |
 | `heldout-js-cross-file-greeting` | JavaScript | cross-file API change |
+| `heldout-js-cross-file-cart` | JavaScript | cross-file API change |
+| `heldout-js-add-tests-slug` | JavaScript | test/regression addition |
 | `heldout-js-refactor-validation` | JavaScript | small refactor |
+| `heldout-js-refactor-errors` | JavaScript | small refactor |
+| `heldout-js-refactor-format` | JavaScript | small refactor |
+| `heldout-js-refactor-config` | JavaScript | small refactor |
 
 The Python tasks use hidden pytest tests. The JavaScript tasks use hidden
 `node --test` files and a small `verify.py`; they require only the Node
 executable, with no npm install, network access, or global packages.
 
-The current fixtures are hand-authored for this repository; they are not
-copies of an external repository. They are held out from prompt and policy
-tuning, so do not adjust prompts or rules against these tasks after they are
-added. Real-repo snapshots with pinned commits, licenses, and provenance are a
-follow-up; when those are added, record the source repository, license, pinned
-commit, and fixture-generation method alongside the task.
+Nineteen fixtures are hand-authored for this repository. The twentieth,
+`heldout-real-requests-link-header`, is a minimized real-repo fixture copied
+from `psf/requests` tag `v2.4.3` (commit
+`46d646064ca0836a7d7b4d50ea2c762d12ff8ce1`): the single `parse_header_links`
+function from `requests/utils.py`, with an Apache-2.0 notice. Its
+`PROVENANCE.md` records the source repository, tag, raw URL, license, fixture
+generation method, and upstream issue
+(<https://github.com/psf/requests/issues/2250>, fixed in
+<https://github.com/psf/requests/pull/2271>); the full Apache-2.0 text is in
+the task's `LICENSE`. The hidden tests require a URL containing a comma to
+stay in one link while normal multi-link headers keep working.
 
-This suite is deliberately small. Report pass rates, cost, wall time, and
-failure categories as a regression signal only, not as a general coding
-benchmark or a ranking against other agents.
+All tasks are held out from prompt and policy tuning, so do not adjust prompts
+or rules against these tasks after they are added. When adding another
+real-repo snapshot, record the source repository, license, pinned tag or
+commit, raw URL, and fixture-generation method alongside the task.
+
+Report pass rates, cost, wall time, and failure categories as a regression
+signal only, not as a general coding benchmark or a ranking against other
+agents.
 
 ## Baselines
 
@@ -278,8 +302,9 @@ the JSON report as an artifact. Live evals cost money and take several minutes,
 so do not add them to pull request checks.
 
 The security and recovery suites are not part of PR CI; run them manually with
-a model key. Both require `--baseline minicode-ask`. The heldout suite is also
-manual only and is not part of PR CI.
+a model key. Both require `--baseline minicode-ask`. The 20-task heldout suite
+is also manual only and is not part of PR CI; only its structural checks
+(`tests/test_evals_heldout.py`) run without a model.
 
 ## Adding a task
 

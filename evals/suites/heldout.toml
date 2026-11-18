@@ -1,10 +1,23 @@
 name = "heldout"
 tasks = [
   "heldout-py-fix-chunk",
+  "heldout-py-fix-duration",
+  "heldout-py-fix-merge-intervals",
   "heldout-py-cross-file-discount",
+  "heldout-py-cross-file-settings",
+  "heldout-py-cross-file-shipping",
   "heldout-py-regression-tests",
+  "heldout-py-add-tests-csv",
   "heldout-py-refactor-rate",
+  "heldout-py-refactor-normalize",
+  "heldout-real-requests-link-header",
   "heldout-js-fix-pagination",
+  "heldout-js-fix-binary-search",
   "heldout-js-cross-file-greeting",
+  "heldout-js-cross-file-cart",
+  "heldout-js-add-tests-slug",
   "heldout-js-refactor-validation",
+  "heldout-js-refactor-errors",
+  "heldout-js-refactor-format",
+  "heldout-js-refactor-config",
 ]
