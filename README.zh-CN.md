@@ -126,13 +126,16 @@ uv run minicode eval --suite recovery --baseline minicode-ask --json evals/resul
 
 最新评测数据、token 和成本见
 [2026-11-18 评测结果](docs/results-2026-11-18.md)（避免中英文两份数字漂移）。
+独立的 20 任务 held-out 评测见
+[2026-11-18 held-out 结果](docs/heldout-results-2026-11-18.md)，真实仓库案例见
+[requests Link header 案例](docs/case-study-requests.md)。
 
-这是一个 **smoke suite**，不是通用 coding benchmark。任务是小型、由本仓库
-自己挑选的，数字只用于回归跟踪。验证隔离是约定级的：它能阻止配置绕过，但不
-是对抗恶意 agent 的 sandbox。
+上面的 smoke suite 不是通用 coding benchmark。任务是小型、由本仓库自己挑选的，
+数字只用于回归跟踪。验证隔离是约定级的：它能阻止配置绕过，但不是对抗恶意
+agent 的 sandbox。
 
-任务定义在 `evals/tasks/`，suite 在 `evals/suites/`（`smoke`、`security`、
-`recovery`），runner 在 `src/minicode/evals/`。任务格式见
+任务定义在 `evals/tasks/`，suite 在 `evals/suites/`（`smoke`、`heldout`、
+`security`、`recovery`），runner 在 `src/minicode/evals/`。任务格式见
 [`evals/README.md`](evals/README.md)。
 
 ## 开发
