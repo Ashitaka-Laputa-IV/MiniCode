@@ -33,7 +33,7 @@ uv run minicode eval --suite heldout --baseline deepagents-default \
 | `minicode-no-subagents` | 20 / 20 | 100.0% | n/a | 11.30 | 0.00 | 0.00 | 583,596 | 30,582 | $0.0261 | 923.4s |
 | `deepagents-default` | 14 / 20 | 70.0% | n/a | 17.10 | 0.00 | 0.00 | 1,122,400 | 42,996 | $0.0409 | 1,610.8s |
 
-`minicode-yolo` used two attempts per task, so its pass@k is estimated from two attempts. The other three baselines used one attempt; their pass@k cells are `n/a` rather than copying pass@1.
+`minicode-yolo` used two attempts per task, so its pass@k is estimated from two attempts. The other three baselines used one attempt; their pass@k cells are `n/a` rather than copying pass@1. The raw summary JSON still stores `pass_at_k` equal to `pass_at_1` for single-attempt baselines; the `n/a` cells above are a report-level convention.
 
 `deepagents-default` passed 14/20 task runs with 17.10 tool calls per run; failures were `timeout`=2, `tool_limit`=4.
 
@@ -103,7 +103,7 @@ RuntimeError: tool call limit exceeded: 20
 
 ## Real-repository case study
 
-The suite includes one minimized real-repository fixture from `psf/requests` v2.4.3 (`parse_header_links`, upstream issue #2250, fix PR #2271). A separate case study documents a `minicode-ask` run with six approval interrupts, one rejected command, a retry, and a final `3 passed`: [`case-study-requests.md`](case-study-requests.md).
+The suite includes one minimized real-repository fixture from `psf/requests` v2.4.3 (`parse_header_links`, upstream issue #2250, fix PR #2271). A separate case study documents a `minicode-ask` run with six approval interrupts, one rejected command, an edit retry after a parallel-write error, and a final `3 passed`: [`case-study-requests.md`](case-study-requests.md).
 
 ## Limitations
 

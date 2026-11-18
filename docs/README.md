@@ -31,7 +31,7 @@
 - [2026-11-18 held-out 结果](heldout-results-2026-11-18.md)：20 个独立任务的
   基线结果、失败分析和真实仓库任务说明。
 - [requests Link header 案例](case-study-requests.md)：从 `psf/requests` 最小化
-  的真实 bug、agent diff、审批中断和重试验证过程。
+  的真实 bug、agent diff、审批中断、命令拒绝和编辑重试过程。
 
 ## 维护约定
 

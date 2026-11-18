@@ -1,8 +1,9 @@
 # Case study: fixing Link header parsing in a real `psf/requests` fixture
 
 This case study uses a minimized, offline fixture from `psf/requests` to show how MiniCode
-handles a real upstream bug, including HITL approval interrupts, a rejected command, a retry,
-and final verification. It is a qualitative example, not a benchmark ranking.
+handles a real upstream bug, including HITL approval interrupts, a rejected command, an edit
+retry after a parallel-write error, and final verification. It is a qualitative example, not a
+benchmark ranking.
 
 ## Upstream issue
 
@@ -47,7 +48,9 @@ The `minicode-ask` run is the case-study run because it exercises the approval p
 
 ## Agent change
 
-The agent added `import re` and changed the split:
+The task prompt explicitly suggests `re.split(", *<", value)`. This run therefore shows the
+agent applying and verifying the suggested expression, not independently deriving it from the
+failure. The agent added `import re` and changed the split:
 
 ```diff
 -    for val in value.split(","):
@@ -73,11 +76,14 @@ def test_url_containing_comma():
 ## Approval interrupts and one rejected command
 
 The `minicode-ask` run paused for approval six times. It read the fixture, made the edit, and
-ran the existing tests. One attempt to reproduce the bug with `python -c ...` was rejected by
-the eval approver because the command contained shell control characters and was not on the
-scripted allow-list. The agent did not retry the same command. It instead added the regression
-test through the file tools and ran the test suite with the approved `python -m pytest -q`
-path.
+ran the existing tests. Before the edit succeeded, the agent issued two parallel `edit_file`
+calls for the same file. The first returned
+`Error: parallel file mutations to the same path are not allowed`; the second applied the
+change. That is the retry referred to in the summary. One attempt to reproduce the bug with
+`python -c ...` was rejected by the eval approver because the command contained shell control
+characters and was not on the scripted allow-list. The agent did not retry the rejected
+command. It instead added the regression test through the file tools and ran the test suite
+with the approved `python -m pytest -q` path.
 
 The worker's visible test run ended with:
 
@@ -90,7 +96,8 @@ After the worker stopped, the hidden verification copied in its own tests and en
 
 ## Interpretation
 
-- The agent found the minimal behavioral fix and matched the upstream change.
+- Given the prompt's explicit hint, the agent applied the minimal behavioral fix and matched
+  the upstream change. This run does not measure independent discovery.
 - The approval interrupts did not prevent completion; the agent adapted after the rejected
   command.
 - The eval approver is a deterministic, cooperative test policy, not a human reviewer or a

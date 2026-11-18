@@ -102,7 +102,8 @@ Pass rates, tokens, cost, failures, and limitations are in
 [`docs/heldout-results-2026-11-18.md`](../docs/heldout-results-2026-11-18.md).
 The real `psf/requests` task is also written up in
 [`docs/case-study-requests.md`](../docs/case-study-requests.md), including the
-approval interrupts, one rejected command, retry, and final verification.
+approval interrupts, one rejected command, an edit retry after a parallel-write
+error, and final verification.
 
 | baseline | passed / task runs | pass@1 | pass@k | cost | wall time |
 | --- | ---: | ---: | ---: | ---: | ---: |
