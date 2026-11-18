@@ -76,14 +76,15 @@ def test_url_containing_comma():
 ## Approval interrupts and one rejected command
 
 The `minicode-ask` run paused for approval six times. It read the fixture, made the edit, and
-ran the existing tests. Before the edit succeeded, the agent issued two parallel `edit_file`
-calls for the same file. The first returned
-`Error: parallel file mutations to the same path are not allowed`; the second applied the
-change. That is the retry referred to in the summary. One attempt to reproduce the bug with
-`python -c ...` was rejected by the eval approver because the command contained shell control
-characters and was not on the scripted allow-list. The agent did not retry the rejected
-command. It instead added the regression test through the file tools and ran the test suite
-with the approved `python -m pytest -q` path.
+ran the existing tests. The agent made three `edit_file` calls for the same file. The first
+two were issued together: adding `import re` succeeded, while the split edit returned
+`Error: parallel file mutations to the same path are not allowed`. The agent then made a
+third `edit_file` call that retried the split edit and applied the change. That third call is
+the edit retry referred to in the summary. One attempt to reproduce the bug with `python -c ...`
+was rejected by the eval approver because the command contained shell control characters and
+was not on the scripted allow-list. The agent did not retry the rejected command. It instead
+added the regression test through the file tools and ran the test suite with the approved
+`python -m pytest -q` path.
 
 The worker's visible test run ended with:
 
