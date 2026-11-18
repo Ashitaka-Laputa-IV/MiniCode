@@ -18,11 +18,11 @@ EXPECTED_INVENTORY_SHA256 = (
 MUTATIONS = {
     "unknown_sku_allowed": (
         "available = self.available(sku)",
-        "available = self._counts.get(sku, 1)",
+        "available = self._counts.get(sku, quantity)",
     ),
     "zero_quantity_allowed": (
         "if quantity <= 0:",
-        "if quantity < 0:",
+        "if False:",
     ),
     "full_reserve_leaves_stock": (
         "self._counts[sku] = available - quantity",
@@ -30,7 +30,7 @@ MUTATIONS = {
     ),
     "over_reserve_allowed": (
         "if quantity > available:",
-        "if quantity > available + 1:",
+        "if False:",
     ),
 }
 
