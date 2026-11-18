@@ -106,9 +106,10 @@ hard deny-list still applies to MiniCode baselines, but this is not a sandbox.
 The current six-baseline smoke matrix, pass@3 ablation, security results,
 recovery results, failure analysis, and limitations are in
 [`docs/results-2026-11-18.md`](../docs/results-2026-11-18.md). Raw per-task JSON
-and logs are published from issue #35 rather than committed here. The suite is
-small, model-backed, and manual; it is not a benchmark ranking and is not run in
-PR CI.
+and logs are release assets in
+[`eval-results-2026-11-18`](https://github.com/Ashitaka-Laputa-IV/MiniCode/releases/tag/eval-results-2026-11-18),
+not committed here. The suite is small, model-backed, and manual; it is not a
+benchmark ranking and is not run in PR CI.
 
 ## Task layout
 

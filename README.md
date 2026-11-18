@@ -134,7 +134,7 @@ See [`evals/README.md`](evals/README.md) for baseline and suite definitions.
 
 ### Eval results
 
-Latest six-baseline smoke matrix (2026-11-18, commit `c1bac6b`, model `opencode-go:deepseek-v4.1-flash`, 20 tasks). Four MiniCode baselines used three runs; `bare` and `deepagents-default` used one. Full metrics, per-task failures, security and recovery results, and limitations are in [`docs/results-2026-11-18.md`](docs/results-2026-11-18.md); raw JSON/logs are attached to [issue #35](https://github.com/Ashitaka-Laputa-IV/MiniCode/issues/35).
+Latest six-baseline smoke matrix (2026-11-18, commit `c1bac6b`, model `opencode-go:deepseek-v4.1-flash`, 20 tasks). Four MiniCode baselines used three runs; `bare` and `deepagents-default` used one. Full metrics, representative failure analysis, security and recovery results, and limitations are in [`docs/results-2026-11-18.md`](docs/results-2026-11-18.md); raw JSON/logs are release assets in [`eval-results-2026-11-18`](https://github.com/Ashitaka-Laputa-IV/MiniCode/releases/tag/eval-results-2026-11-18), with discussion in [issue #35](https://github.com/Ashitaka-Laputa-IV/MiniCode/issues/35).
 
 | baseline | pass@1 | pass@3 | tool calls/run | cost | wall time |
 | --- | ---: | ---: | ---: | ---: | ---: |
