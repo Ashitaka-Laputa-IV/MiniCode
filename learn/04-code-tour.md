@@ -8,51 +8,51 @@
 
 ## 1. `main()`：所有路径的入口
 
-停在 [`main()`](../src/minicode/cli.py#L382)，因为单次任务、REPL、评测三个入口都在这里分叉。`eval` 在 `argparse` 之前被拦截，见 [`main()` 的 eval 分支](../src/minicode/cli.py#L385)；普通任务才走 `build_parser()`。
+停在 [`main()`](../src/minicode/cli.py#L384)，因为单次任务、REPL、评测三个入口都在这里分叉。`eval` 在 `argparse` 之前被拦截，见 [`main()` 的 eval 分支](../src/minicode/cli.py#L387)；普通任务才走 `build_parser()`。
 
-读这一段时重点看 `load_env()` 的位置、两个 `Console` 的流向、以及 `finally` 里的 [`close_checkpointer()`](../src/minicode/agent.py#L124)。改这里会影响 `--help`、退出码和资源关闭，不只是参数列表。
+读这一段时重点看 `load_env()` 的位置、两个 `Console` 的流向、以及 `finally` 里的 [`close_checkpointer()`](../src/minicode/agent.py#L187)。改这里会影响 `--help`、退出码和资源关闭，不只是参数列表。
 
 如果新增子命令，先决定它是像 `eval` 一样在 `main()` 前拦截，还是注册成真正的 subparser；两种做法对 `--help` 和测试的影响不同。
 
 ## 2. prompt 解析：单次还是 REPL
 
-停在 [`main()` 的 prompt 解析段](../src/minicode/cli.py#L398)，因为这里决定“这次有没有 prompt、要不要读 stdin、能不能用 SQLite 参数”。`--interactive` 与 prompt 冲突、非 TTY 读 stdin、`--db`/`--thread` 只属于 REPL，三条规则都在这里。
+停在 [`main()` 的 prompt 解析段](../src/minicode/cli.py#L400)，因为这里决定“这次有没有 prompt、要不要读 stdin、能不能用 SQLite 参数”。`--interactive` 与 prompt 冲突、非 TTY 读 stdin、`--db`/`--thread` 只属于 REPL，三条规则都在这里。
 
-读完后看 [`main()` 的 checkpoint 选择](../src/minicode/cli.py#L422)：`checkpoint=not bool(prompt)` 是单次任务和 REPL 的分界线。改这条表达式会同时改变持久化、`--db` 的语义和测试里的 `fake_build_agent` 断言。
+读完后看 [`main()` 的 checkpoint 选择](../src/minicode/cli.py#L424)：`checkpoint=not bool(prompt)` 是单次任务和 REPL 的分界线。改这条表达式会同时改变持久化、`--db` 的语义和测试里的 `fake_build_agent` 断言。
 
 验证时优先跑 `tests/test_cli.py` 里的 `test_main_rejects_prompt_with_interactive`、`test_main_rejects_sqlite_options_with_prompt` 和 `test_main_requires_prompt_when_not_tty`，它们分别锁 prompt/交互冲突、SQLite 参数和“非 TTY 无 prompt”。
 
 ## 3. `build_agent()`：装配点
 
-停在 [`build_agent()`](../src/minicode/agent.py#L132)，因为 policy、backend、interrupt、checkpointer 都在这一处接线。它不产生对话，只把“用哪个模型、在哪个目录、按什么权限、状态存哪里”变成一张图。
+停在 [`build_agent()`](../src/minicode/agent.py#L195)，因为 policy、backend、interrupt、checkpointer 都在这一处接线。它不产生对话，只把“用哪个模型、在哪个目录、按什么权限、状态存哪里”变成一张图。
 
-读 147–194 行：`resolve_root()` 和 `resolve_model()` 做校验，`PermissionMode.parse()` 做模式解析，`Policy` 和 `PolicyShellBackend` 被创建，`interrupt_on` 只在 `ask` 下组装，checkpointer 再按 `checkpoint`/模式选择。
+读 212–265 行：`resolve_root()` 和 `resolve_model()` 做校验，`PermissionMode.parse()` 做模式解析，`Policy` 和 `PolicyShellBackend` 被创建，`interrupt_on` 只在 `ask` 下组装，checkpointer 再按 `checkpoint`/模式选择。
 
 改这里最危险的是跳过校验。`resolve_root()` 的 `is_dir()` 和 `resolve_model()` 的空值回退是公开入口的契约，测试 `test_build_agent_rejects_missing_root`、`test_resolve_model_empty_falls_back` 会抓回归。
 
 ## 4. `interrupt_on`：哪些 tool call 要停
 
-停在 [`build_agent()` 组装 `interrupt_on`](../src/minicode/agent.py#L159)，因为这是“什么需要人批准”的唯一声明。`write_file`/`edit_file`/`delete` 共用 `file_gate`，`execute` 用带 [`needs_shell_approval()`](../src/minicode/agent.py#L162) 的 `when`。
+停在 [`build_agent()` 组装 `interrupt_on`](../src/minicode/agent.py#L225)，因为这是“什么需要人批准”的唯一声明。`write_file`/`edit_file`/`delete` 共用 `file_gate`，`execute` 用带 [`needs_shell_approval()`](../src/minicode/agent.py#L228) 的 `when`。
 
 读这段时注意两点：`allowed_decisions` 只有 `approve`/`reject`，没有 `edit`；`when` 只决定“要不要停”，不决定“停之后放不放行”。放行仍由 backend 再判一次。
 
-如果要给新工具加审批，除了在这里加 key，还要确认 CLI 的 [`ask_approval()`](../src/minicode/cli.py#L169) 能展示它的参数；如果要加 `edit` 或 `respond` 决定，`resume_command()` 和测试也要一起改。
+如果要给新工具加审批，除了在这里加 key，还要确认 CLI 的 [`ask_approval()`](../src/minicode/cli.py#L171) 能展示它的参数；如果要加 `edit` 或 `respond` 决定，`resume_command()` 和测试也要一起改。
 
 ## 5. `run_turn()`：stream 和 resume 的接缝
 
-停在 [`run_turn()`](../src/minicode/cli.py#L224)，因为 HITL 的 bug 多数出在这个循环。它先发用户消息，再消费 `agent.stream()`；看到 `__interrupt__` 就收集，不 break；stream 结束后把 pending 变成 [`Command(resume=...)`](../src/minicode/cli.py#L211)，再开下一轮。
+停在 [`run_turn()`](../src/minicode/cli.py#L226)，因为 HITL 的 bug 多数出在这个循环。它先发用户消息，再消费 `agent.stream()`；看到 `__interrupt__` 就收集，不 break；stream 结束后把 pending 变成 [`Command(resume=...)`](../src/minicode/cli.py#L213)，再开下一轮。
 
-读 224–253 行：`stream_input` 的初始形状是 `{"messages": [{"role": "user", "content": prompt}]}`；`pending` 在每个 while 迭代开始时清空；`print_update()` 返回的 `final_message` 会被后续 update 覆盖。
+读 226–255 行：`stream_input` 的初始形状是 `{"messages": [{"role": "user", "content": prompt}]}`；`pending` 在每个 while 迭代开始时清空；`print_update()` 返回的 `final_message` 会被后续 update 覆盖。
 
 改 break 条件、pending 的累积方式或 resume 的形状，最容易造成“审批后工具没执行”或“多轮 interrupt 只处理一个”。`tests/test_hitl.py` 的真实 stream 用例和 `tests/test_cli.py` 的 `ApprovalAgent` 是两条回归线。
 
 ## 6. `ask_approval()` 和 `resume_command()`：人的决定怎么变成图输入
 
-停在 [`ask_approval()`](../src/minicode/cli.py#L180)，因为这里决定用户看到什么、decision 长什么样。它逐个 action 打印名称、description 和脱敏后的 [`display_args()`](../src/minicode/redaction.py#L120)；非 TTY 时 append reject；交互时读 `y/N`。如果传入了 audit，它还会写 `approval` 事件：TTY 下记 approver 和 approve/reject，非 TTY 下记 `approver=null`。
+停在 [`ask_approval()`](../src/minicode/cli.py#L171)，因为这里决定用户看到什么、decision 长什么样。它逐个 action 打印名称、description 和 `short_json(args)`；非 TTY 时 append reject；交互时读 `y/N`。当前没有脱敏层，参数会原样截断显示，见[参数打印](../src/minicode/cli.py#L184)。
 
-再停 [`resume_command()`](../src/minicode/cli.py#L211)：单个 interrupt 返回 `{"decisions": [...]}`，多个 interrupt 返回 `{interrupt_id: {"decisions": [...]}}`。这个形状必须和 LangGraph/LangChain 的 response schema 对齐，不能只看 CLI 测试。
+再停 [`resume_command()`](../src/minicode/cli.py#L213)：单个 interrupt 返回 `{"decisions": [...]}`，多个 interrupt 返回 `{interrupt_id: {"decisions": [...]}}`。这个形状必须和 LangGraph/LangChain 的 response schema 对齐，不能只看 CLI 测试。
 
-改提示文案时保留参数预览。`InterruptOnConfig` 的静态 description 永远非空，所以代码仍然无条件打印 `args`，见 [`ask_approval()` 打印参数](../src/minicode/cli.py#L182)；删掉这一行会让用户“盲批”。
+改提示文案时保留参数预览。`InterruptOnConfig` 的静态 description 永远非空，所以代码仍然无条件打印 `args`；删掉这一行会让用户“盲批”。
 
 ## 7. `Policy.evaluate_command()`：一个函数决定三种模式
 
@@ -72,27 +72,27 @@
 
 ## 9. `PolicyShellBackend`：host shell 的执行口
 
-停在 [`PolicyShellBackend.execute()`](../src/minicode/backends.py#L64)，因为它是 host shell 的最后一道包装。`evaluate_command()` 返回 `DENY` 时直接构造 `ExecuteResponse`，`exit_code=126`；否则调用 [`super().execute()`](../src/minicode/backends.py#L87)。
+停在 [`PolicyShellBackend.execute()`](../src/minicode/backends.py#L34)，因为它是 host shell 的最后一道包装。`evaluate_command()` 返回 `DENY` 时直接构造 `ExecuteResponse`，`exit_code=126`；否则调用 [`super().execute()`](../src/minicode/backends.py#L49)。
 
-文件工具也在这里分叉：[`write()`](../src/minicode/backends.py#L97)、[`edit()`](../src/minicode/backends.py#L127)、[`delete()`](../src/minicode/backends.py#L168) 先看 `allows_file_write()`，`read-only` 返回 permission error，`ask`/`yolo` 继续。
+文件工具也在这里分叉：[`write()`](../src/minicode/backends.py#L51)、[`edit()`](../src/minicode/backends.py#L66)、[`delete()`](../src/minicode/backends.py#L87) 先看 `allows_file_write()`，`read-only` 返回 permission error，`ask`/`yolo` 继续。
 
-PR #16 在这四个方法里加了审计：执行前写 `policy`，执行后写 `result`。`execute` 的 deny 分支会记 reason 和 `exit_code=126`，文件工具只记 path、byte count 和 error，不记内容。审计写入失败不会阻断执行，所以它不在权限路径上；细节见 [06-audit-and-redaction.md](06-audit-and-redaction.md)。
+PR #16 曾在这四个方法里加审计，PR #22 已把它整体回滚；当前 backend 只做权限判断和文件写入判断，不写审计日志。历史见 [prs/22-revert-audit.md](prs/22-revert-audit.md)。
 
-新增一个能执行命令的工具时，要么让它经过这个 backend，要么明确它为什么不需要 policy；否则 hard deny 和 `read-only` 都只是装饰，审计也不会自动覆盖它。`tests/test_backends.py` 覆盖了 deny、safe、allow-list 和 read-only 文件拒绝。
+新增一个能执行命令的工具时，要么让它经过这个 backend，要么明确它为什么不需要 policy；否则 hard deny 和 `read-only` 都只是装饰。`tests/test_backends.py` 覆盖了 deny、safe、allow-list 和 read-only 文件拒绝。
 
 ## 10. `print_update()` 和 `print_final()`：输出契约
 
-停在 [`print_update()`](../src/minicode/cli.py#L113)，因为工具进度、thinking 和最终回答的分流都在这里。它遍历 update 里的节点，只处理带 `messages` 的字典；AI 消息先打印 thinking，再打印 tool call；tool 消息打印结果；无 tool call 的 AI 消息被记为 `final`。
+停在 [`print_update()`](../src/minicode/cli.py#L111)，因为工具进度、thinking 和最终回答的分流都在这里。它遍历 update 里的节点，只处理带 `messages` 的字典；AI 消息先打印 thinking，再打印 tool call；tool 消息打印结果；无 tool call 的 AI 消息被记为 `final`。
 
-PR #16 把 tool call 的参数改成 [`summarize_args()`](../src/minicode/redaction.py#L88)，所以 `Authorization` / token 不会先出现在终端 scrollback；tool 结果 `<-` 仍然是截断后的原文，这是当前边界。
+当前 `print_update()` 直接用 [`short_json()`](../src/minicode/cli.py#L103) 打印 tool call 参数，没有 secret 脱敏；`Authorization` / token 可能出现在终端 scrollback。tool 结果 `<-` 也是截断后的原文。这是当前边界，不要把它当成审计或脱敏层。
 
-再停 [`print_final()`](../src/minicode/cli.py#L149)：只有 `output.is_terminal` 才用 `Markdown`，否则按原文打印。这个分支保证管道输出是模型原文。
+再停 [`print_final()`](../src/minicode/cli.py#L151)：只有 `output.is_terminal` 才用 `Markdown`，否则按原文打印。这个分支保证管道输出是模型原文。
 
 改输出时同时看 `tests/test_cli.py` 的 `print_update`/`print_final` 用例。`reasoning_text()` 还兼容 `content_blocks`、`summary` 和 `additional_kwargs` 三种 provider 形态；新增模型接入时先确认它落在哪一支。
 
 ## 11. `reset_thread()`：清对话，不清工作区
 
-停在 [`reset_thread()`](../src/minicode/cli.py#L260)，因为它是 `/reset`、失败、Ctrl+C 三条路径的共同动作。它从 `config` 取 `thread_id`，调用 checkpointer 的 `delete_thread()`；没有 checkpointer 时什么也不做。
+停在 [`reset_thread()`](../src/minicode/cli.py#L262)，因为它是 `/reset`、失败、Ctrl+C 三条路径的共同动作。它从 `config` 取 `thread_id`，调用 checkpointer 的 `delete_thread()`；没有 checkpointer 时什么也不做。
 
 读它时注意：删除的是 thread 的 checkpoint，不是文件。`/reset` 之后模型不记得上一轮，但 workspace 里的改动还在；这一点在 02 的状态表里已经展开。
 
@@ -100,25 +100,24 @@ PR #16 把 tool call 的参数改成 [`summarize_args()`](../src/minicode/redact
 
 ## 12. 评测的 `run_task()` 和 `run_verify()`：第二条入口
 
-停在 [`run_task()`](../src/minicode/evals/runner.py#L296)，因为评测不是“再跑一次 CLI”，而是复制 fixture、开 worker 子进程、再开 verify 子进程。worker 用 `yolo` 和非过滤环境，verify 用 [`verification_env()`](../src/minicode/evals/runner.py#L105) 过滤 provider key。
+停在 [`run_task()`](../src/minicode/evals/runner.py#L352)，因为评测不是“再跑一次 CLI”，而是复制 fixture、开 worker 子进程、再开 verify 子进程。worker 用 `yolo` 和非过滤环境，verify 用 [`verification_env()`](../src/minicode/evals/runner.py#L117) 过滤 provider key。
 
-再停 [`run_verify()`](../src/minicode/evals/runner.py#L142)：hidden tests 被复制到 workspace 之外的 sibling 目录，用 `evals/pytest-safe.ini` 和 `--rootdir`/`--confcutdir` 跑，先 `--collect-only` 再执行。改 fixture 布局、hidden 目录或 verify 命令，先跑 `uv run pytest -q tests/test_evals.py tests/test_evals_cli.py tests/test_evals_worker.py`。
+再停 [`run_verify()`](../src/minicode/evals/runner.py#L163)：hidden tests 被复制到 workspace 之外的 sibling 目录，用 `evals/pytest-safe.ini` 和 `--rootdir`/`--confcutdir` 跑，先 `--collect-only` 再执行。改 fixture 布局、hidden 目录或 verify 命令，先跑 `uv run pytest -q tests/test_evals.py tests/test_evals_cli.py tests/test_evals_worker.py`。
 
-评测的退出码在 [`evals/cli.py`](../src/minicode/evals/cli.py#L70) 单独决定：`bare` 只作为能力下限，单独跑失败也返回 0；`full`/`all` 以非 bare 结果为准。
+评测的退出码在 [`evals/cli.py`](../src/minicode/evals/cli.py#L138) 单独决定：`bare` 只作为能力下限，单独跑失败也返回 0；`full`/`all` 以非 bare 结果为准。
 
 ## 用命令验证你读对了
 
-这些命令在当前 HEAD `d96e6eb` 上跑过：
+这些命令在当前 HEAD `f3133b0` 上跑过：
 
 ```bash
-uv run pytest -q tests/test_hitl.py
-uv run pytest -q tests/test_policy.py tests/test_backends.py
-uv run pytest -q tests/test_evals.py tests/test_evals_cli.py tests/test_evals_worker.py
-uv run pytest -q tests/test_audit.py tests/test_redaction.py
-uv run pytest -q
+uv run python -m pytest -q tests/test_hitl.py
+uv run python -m pytest -q tests/test_policy.py tests/test_backends.py
+uv run python -m pytest -q tests/test_evals.py tests/test_evals_cli.py tests/test_evals_worker.py
+uv run python -m pytest -q tests/test_cli.py
 ```
 
-前三条分别覆盖 interrupt/resume、policy/backend、评测隔离，第四条覆盖审计和脱敏；全量那条是 229 passed，1 skipped，2 deselected。`uv run minicode --help` 和 `uv run minicode eval --help` 也跑过，用来确认两个入口的参数没有混在一起。
+前三条分别覆盖 interrupt/resume、policy/backend、评测隔离，第四条覆盖 CLI 输出和审批。四组一起跑是 202 passed。`uv run minicode --help` 和 `uv run minicode eval --help` 也跑过，用来确认两个入口的参数没有混在一起。审计/脱敏测试已经随 PR #22 删除，不要再去 `tests/` 里找 `test_audit.py`。
 
 `tests/test_hitl.py` 不需要 API key：它用 `ToolCallingModel` 驱动真实图，所以适合在没有 provider key 的机器上验证审批路径。
 
