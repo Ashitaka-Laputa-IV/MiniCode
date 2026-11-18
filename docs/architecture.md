@@ -188,7 +188,7 @@ database/thread 和 `Command(resume={"decisions": [{"type": "approve"}]})`
 | `src/minicode/backends.py` | `PolicyShellBackend`：把策略落到文件/shell 操作 |
 | `src/minicode/evals/` | fixture 评测、worker、verify、报告和退出码 |
 | `tests/` | policy、backend、HITL、CLI、SQLite、评测的回归测试 |
-| `evals/tasks/` | 20 个 smoke fixture 任务；另有 7 个 `heldout-*` 任务（4 Python + 3 JavaScript）和 security/recovery 专用 fixture |
+| `evals/tasks/` | 20 个 smoke fixture 任务；另有 20 个 `heldout-*` 任务（11 Python + 9 JavaScript，含一个 `psf/requests` 最小化真实 fixture）和 security/recovery 专用 fixture |
 | `docs/` | 架构、权限、文档索引 |
 
 ## 扩展点
