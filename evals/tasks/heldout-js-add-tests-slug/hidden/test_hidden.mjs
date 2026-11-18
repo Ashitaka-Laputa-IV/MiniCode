@@ -82,6 +82,13 @@ test("agent tests detect slug behavior mutations", async () => {
       await cp(path.join(workspace, "tests"), path.join(dir, "tests"), {
         recursive: true,
       });
+      await cp(path.join(workspace, "package.json"), path.join(dir, "package.json"));
+      const baseline = runTests(dir);
+      assert.equal(
+        baseline.status,
+        0,
+        `unmutated copy failed:\n${baseline.stdout}${baseline.stderr}`,
+      );
       await writeFile(path.join(dir, "src", "slug.js"), mutated, "utf8");
       const proc = runTests(dir);
       assert.notEqual(

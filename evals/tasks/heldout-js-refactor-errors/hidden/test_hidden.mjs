@@ -36,40 +36,94 @@ test("public functions keep their behavior", () => {
   });
 });
 
-function functionBody(name) {
-  const match = new RegExp(`(?:export\\s+)?function\\s+${name}\\s*\\(`).exec(source);
-  assert.ok(match, `missing function ${name}`);
-  const openParen = source.indexOf("(", match.index);
-  let parenDepth = 0;
-  let closeParen = -1;
-  for (let index = openParen; index < source.length; index += 1) {
-    if (source[index] === "(") {
-      parenDepth += 1;
-    } else if (source[index] === ")") {
-      parenDepth -= 1;
-      if (parenDepth === 0) {
-        closeParen = index;
-        break;
+function skipWhitespace(text, index) {
+  let current = index;
+  while (current < text.length && /\s/.test(text[current])) {
+    current += 1;
+  }
+  return current;
+}
+
+function closingParen(text, openIndex, name) {
+  let depth = 0;
+  for (let index = openIndex; index < text.length; index += 1) {
+    if (text[index] === "(") {
+      depth += 1;
+    } else if (text[index] === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        return index;
       }
     }
   }
-  assert.ok(closeParen >= 0, `unterminated parameters for ${name}`);
-  const start = source.indexOf("{", closeParen);
-  assert.ok(start >= 0, `missing body for ${name}`);
+  assert.fail(`unterminated parameters for ${name}`);
+}
+
+function braceBody(text, openIndex, name) {
   let depth = 0;
-  for (let index = start; index < source.length; index += 1) {
-    if (source[index] === "{") {
+  for (let index = openIndex; index < text.length; index += 1) {
+    if (text[index] === "{") {
       depth += 1;
-    } else if (source[index] === "}") {
+    } else if (text[index] === "}") {
       depth -= 1;
       if (depth === 0) {
-        return source.slice(start + 1, index);
+        return text.slice(openIndex + 1, index);
       }
     }
   }
   assert.fail(`unterminated function ${name}`);
 }
 
+function functionBody(name) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const declaration = new RegExp(
+    `(?:export\\s+)?(?:async\\s+)?function\\s+${escaped}\\s*\\(`,
+  ).exec(source);
+  if (declaration) {
+    const openParen = source.indexOf("(", declaration.index);
+    const closeParen = closingParen(source, openParen, name);
+    const openBrace = source.indexOf("{", closeParen);
+    assert.ok(openBrace >= 0, `missing body for ${name}`);
+    return braceBody(source, openBrace, name);
+  }
+
+  const assignment = new RegExp(
+    `(?:export\\s+)?(?:const|let|var)\\s+${escaped}\\s*=`,
+  ).exec(source);
+  if (assignment) {
+    let index = skipWhitespace(source, assignment.index + assignment[0].length);
+    if (
+      source.slice(index, index + 5) === "async" &&
+      !/[A-Za-z0-9_$]/.test(source[index + 5] ?? "")
+    ) {
+      index = skipWhitespace(source, index + 5);
+    }
+    if (source.slice(index, index + 8) === "function") {
+      const openParen = source.indexOf("(", index);
+      const closeParen = closingParen(source, openParen, name);
+      const openBrace = source.indexOf("{", closeParen);
+      assert.ok(openBrace >= 0, `missing body for ${name}`);
+      return braceBody(source, openBrace, name);
+    }
+    if (source[index] === "(") {
+      index = skipWhitespace(source, closingParen(source, index, name) + 1);
+    } else {
+      while (index < source.length && /[A-Za-z0-9_$]/.test(source[index])) {
+        index += 1;
+      }
+      index = skipWhitespace(source, index);
+    }
+    if (source.slice(index, index + 2) === "=>") {
+      index = skipWhitespace(source, index + 2);
+      if (source[index] === "{") {
+        return braceBody(source, index, name);
+      }
+      const end = source.indexOf(";", index);
+      return source.slice(index, end < 0 ? source.length : end);
+    }
+  }
+  assert.fail(`missing function ${name}`);
+}
 test("public functions call the helper", () => {
   for (const name of ["parsePort", "parseTimeout"]) {
     assert.match(functionBody(name), /parseInteger\s*\(/, `${name} must call parseInteger`);
