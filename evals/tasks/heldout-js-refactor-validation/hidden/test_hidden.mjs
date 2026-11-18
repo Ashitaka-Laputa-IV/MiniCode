@@ -42,7 +42,17 @@ test("public functions keep their behavior", () => {
   });
 });
 
+function functionBody(name) {
+  const pattern = new RegExp(
+    `(?:export\\s+)?function\\s+${name}\\s*\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\n\\}`,
+    "m",
+  );
+  const match = source.match(pattern);
+  assert.ok(match, `${name} function not found in src/validation.js`);
+  return match[1];
+}
+
 test("public functions call the helper", () => {
-  const calls = source.match(/assertValidAccount\s*\(/g) ?? [];
-  assert.ok(calls.length >= 3);
+  assert.match(functionBody("createAccount"), /assertValidAccount\s*\(/);
+  assert.match(functionBody("updateAccount"), /assertValidAccount\s*\(/);
 });

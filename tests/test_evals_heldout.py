@@ -8,7 +8,7 @@ def test_heldout_suite_has_expected_size_and_unique_ids() -> None:
     tasks = load_suite("heldout")
     ids = [task.id for task in tasks]
 
-    assert 6 <= len(tasks) <= 8
+    assert len(tasks) == 7
     assert len(ids) == len(set(ids))
     assert all(task_id.startswith("heldout-") for task_id in ids)
 
@@ -64,8 +64,8 @@ def test_heldout_covers_python_javascript_and_required_categories() -> None:
         task for task in tasks if (task.path / "fixture" / "package.json").is_file()
     ]
 
-    assert 4 <= len(python_tasks) <= 5
-    assert 2 <= len(javascript_tasks) <= 3
+    assert len(python_tasks) == 4
+    assert len(javascript_tasks) == 3
     assert len(python_tasks) + len(javascript_tasks) == len(tasks)
     assert all(task.hidden_tests is not None for task in python_tasks)
     assert all(task.verify_script is not None for task in javascript_tasks)

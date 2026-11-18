@@ -1,10 +1,18 @@
+import hashlib
+import os
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
 from app.inventory import Inventory
+
+EXPECTED_INVENTORY_SHA256 = (
+    "c0dcfbe7342677da3793580d121ef563ba0180723590574408033573a3393b16"
+)
 
 
 def test_regression_file_exists_with_four_tests():
@@ -17,24 +25,50 @@ def test_regression_file_exists_with_four_tests():
 
 def test_regression_file_passes():
     test_file = Path.cwd() / "tests" / "test_inventory.py"
-    proc = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-q",
-            "-p",
-            "no:cacheprovider",
-            str(test_file),
-        ],
-        cwd=Path.cwd(),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=60,
-    )
+    assert test_file.is_file(), "tests/test_inventory.py was not created"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        copied_test = tmp_path / "test_inventory.py"
+        shutil.copyfile(test_file, copied_test)
+        (tmp_path / "pytest.ini").write_text(
+            "[pytest]\naddopts =\n", encoding="utf-8"
+        )
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(Path.cwd())
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "-q",
+                "-c",
+                str(tmp_path / "pytest.ini"),
+                "--rootdir",
+                str(tmp_path),
+                "--confcutdir",
+                str(tmp_path),
+                "-p",
+                "no:cacheprovider",
+                str(copied_test),
+            ],
+            cwd=tmp_path,
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+        )
     assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_inventory_source_is_unchanged():
+    source = (Path.cwd() / "app" / "inventory.py").read_text(encoding="utf-8")
+    normalized = source.replace("\r\n", "\n")
+    assert hashlib.sha256(normalized.encode("utf-8")).hexdigest() == (
+        EXPECTED_INVENTORY_SHA256
+    )
 
 
 def test_unknown_sku_is_rejected():
