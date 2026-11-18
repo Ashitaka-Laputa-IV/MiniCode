@@ -1,0 +1,5 @@
+id = "heldout-js-fix-binary-search"
+category = "bugfix"
+timeout_seconds = 180
+max_tool_calls = 20
+verify_script = "verify.py"

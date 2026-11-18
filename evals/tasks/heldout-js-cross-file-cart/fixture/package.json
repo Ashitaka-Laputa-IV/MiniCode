@@ -1,0 +1,8 @@
+{
+  "name": "heldout-js-cross-file-cart",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

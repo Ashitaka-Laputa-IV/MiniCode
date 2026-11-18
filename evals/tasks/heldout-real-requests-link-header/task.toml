@@ -1,0 +1,5 @@
+id = "heldout-real-requests-link-header"
+category = "bugfix"
+timeout_seconds = 180
+max_tool_calls = 20
+hidden_tests = "hidden"

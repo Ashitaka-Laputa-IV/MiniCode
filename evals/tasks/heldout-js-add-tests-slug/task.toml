@@ -1,0 +1,5 @@
+id = "heldout-js-add-tests-slug"
+category = "add-tests"
+timeout_seconds = 180
+max_tool_calls = 20
+verify_script = "verify.py"

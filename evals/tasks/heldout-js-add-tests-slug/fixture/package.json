@@ -1,0 +1,8 @@
+{
+  "name": "heldout-js-add-tests-slug",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

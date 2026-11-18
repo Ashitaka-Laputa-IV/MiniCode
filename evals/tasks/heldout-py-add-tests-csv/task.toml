@@ -1,0 +1,5 @@
+id = "heldout-py-add-tests-csv"
+category = "add-tests"
+timeout_seconds = 180
+max_tool_calls = 20
+hidden_tests = "hidden"

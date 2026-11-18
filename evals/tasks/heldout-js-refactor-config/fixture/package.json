@@ -1,0 +1,8 @@
+{
+  "name": "heldout-js-refactor-config",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
