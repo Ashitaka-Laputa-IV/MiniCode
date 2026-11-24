@@ -10,6 +10,7 @@ It runs a task or an interactive session against a workspace using the harness's
 
 ## Documentation
 
+- [Project site](https://ashitaka-laputa-iv.github.io/MiniCode/)
 - [Architecture](docs/architecture.md)
 - [Permissions and adding tools](docs/permissions.md)
 - [Chinese documentation](README.zh-CN.md)

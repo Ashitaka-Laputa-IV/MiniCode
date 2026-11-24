@@ -208,6 +208,7 @@ Provider API key 不会继承到 agent 的 shell 命令中。
 
 ## 文档
 
+- [项目主页](https://ashitaka-laputa-iv.github.io/MiniCode/)
 - [中文文档索引](docs/README.md)
 - [架构总览](docs/architecture.md)
 - [权限与新增工具](docs/permissions.md)
