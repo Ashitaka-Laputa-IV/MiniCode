@@ -12,6 +12,14 @@
   const normalize = (value) =>
     value && value.toLowerCase().startsWith("en") ? "en" : "zh";
   const current = () => (html.dataset.lang === "en" ? "en" : "zh");
+  const titles = {
+    zh: "MiniCode — 终端 coding agent",
+    en: "MiniCode — terminal-native coding agent",
+  };
+  const descriptions = {
+    zh: "MiniCode 是基于 Deep Agents 的终端 coding agent，提供权限模式、HITL 审批、检查点和离线评测。",
+    en: "MiniCode is a terminal-native coding agent built on Deep Agents: permission modes, HITL approvals, checkpoints, and offline evals.",
+  };
 
   function labelTables() {
     const lang = current();
@@ -49,6 +57,13 @@
     const { persist = true, updateUrl = true } = options;
     html.dataset.lang = lang;
     html.lang = lang === "zh" ? "zh-CN" : "en";
+    document.title = titles[lang];
+    const description = document.querySelector('meta[name="description"]');
+    if (description) description.setAttribute("content", descriptions[lang]);
+    const nav = document.querySelector(".nav");
+    if (nav) {
+      nav.setAttribute("aria-label", lang === "zh" ? "主导航" : "Primary navigation");
+    }
     labelTables();
     for (const button of buttons) {
       button.setAttribute(

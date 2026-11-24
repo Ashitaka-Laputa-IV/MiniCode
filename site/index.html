@@ -30,7 +30,7 @@
 
     <header class="site-header">
       <nav class="nav" aria-label="Primary">
-        <a class="brand" href="#top" aria-label="MiniCode home">
+        <a class="brand" href="#top" aria-label="MiniCode 首页 / MiniCode home">
           <span class="brand-mark" aria-hidden="true">&gt;_</span>
           <span>MiniCode</span>
         </a>
@@ -90,7 +90,7 @@
               <span class="lang-en">View source</span>
             </a>
           </div>
-          <ul class="badges" aria-label="Project facts">
+          <ul class="badges" aria-label="项目信息 / Project facts">
             <li>
               <strong>20</strong>
               <span class="lang-zh">held-out 任务</span>
@@ -114,7 +114,7 @@
           </ul>
         </div>
 
-        <div class="terminal" aria-label="Illustrative MiniCode session">
+        <div class="terminal" aria-label="MiniCode 会话示例 / Illustrative MiniCode session">
           <div class="terminal-bar">
             <span class="dot red"></span>
             <span class="dot yellow"></span>
@@ -146,14 +146,12 @@
             <span class="lang-en">Run it in a minute</span>
           </h2>
           <p class="section-lede lang-zh">
-            需要 Python 3.13 和 uv。默认模型是
-            <code>deepseek:deepseek-flash</code>，也可以通过
-            <code>--model</code> 切换。
+            需要 Python 3.13、uv 和默认模型的 <code>DEEPSEEK_API_KEY</code>；
+            也可以通过 <code>--model</code> 切换。
           </p>
           <p class="section-lede lang-en">
-            Requires Python 3.13 and uv. The default model is
-            <code>deepseek:deepseek-flash</code>; switch with
-            <code>--model</code>.
+            Requires Python 3.13, uv, and <code>DEEPSEEK_API_KEY</code> for the
+            default model; switch with <code>--model</code>.
           </p>
         </div>
 
@@ -178,6 +176,7 @@
             <pre><code id="code-install">git clone https://github.com/Ashitaka-Laputa-IV/MiniCode.git
 cd MiniCode
 uv sync
+export DEEPSEEK_API_KEY="..."   # or set it in .env
 uv run minicode "fix the failing test"</code></pre>
           </div>
 
@@ -280,13 +279,13 @@ uv run minicode \
               <span class="lang-en">Checkpoint and resume</span>
             </h3>
             <p class="lang-zh">
-              REPL 与评测 worker 用 SQLite saver 保存每一步状态；中断、失败或重启后可以回到同一个
+              REPL 与启用 checkpoint 的评测基线用 SQLite saver 保存每一步状态；中断、失败或重启后可以回到同一个
               thread。
             </p>
             <p class="lang-en">
-              The REPL and eval workers use a SQLite saver for each step; after
-              an interrupt, failure, or restart you can return to the same
-              thread.
+              The REPL and checkpoint-enabled eval baselines use a SQLite saver
+              for each step; after an interrupt, failure, or restart you can
+              return to the same thread.
             </p>
           </article>
 
@@ -359,7 +358,8 @@ uv run minicode \
           <div class="table-wrap">
             <table class="responsive-table">
               <caption class="sr-only">
-                Permission modes
+                <span class="lang-zh">权限模式</span>
+                <span class="lang-en">Permission modes</span>
               </caption>
               <thead>
                 <tr>
@@ -478,13 +478,15 @@ uv run minicode \
             <span class="lang-en">Regression numbers, not a story</span>
           </h2>
           <p class="section-lede lang-zh">
-            两个离线套件、六个基线。样本小、任务由本仓库策划，数字只用于回归跟踪，不是
-            benchmark 排名或 SOTA 结论。
+            四个离线套件（smoke、held-out、security、recovery）和六个 smoke
+            基线。样本小、任务由本仓库策划，数字只用于回归跟踪，不是 benchmark
+            排名或 SOTA 结论。
           </p>
           <p class="section-lede lang-en">
-            Two offline suites and six baselines. The samples are small and
-            repository-authored; use the numbers for regression tracking, not as
-            a benchmark ranking or a SOTA claim.
+            Four offline suites (smoke, held-out, security, recovery) and six
+            smoke baselines. The samples are small and repository-authored; use
+            the numbers for regression tracking, not as a benchmark ranking or a
+            SOTA claim.
           </p>
         </div>
 
@@ -496,7 +498,10 @@ uv run minicode \
             </div>
             <div class="table-wrap">
               <table class="responsive-table">
-                <caption class="sr-only">Smoke suite results</caption>
+                <caption class="sr-only">
+                  <span class="lang-zh">Smoke 套件结果</span>
+                  <span class="lang-en">Smoke suite results</span>
+                </caption>
                 <thead>
                   <tr>
                     <th>Baseline</th>
@@ -572,7 +577,10 @@ uv run minicode \
             </div>
             <div class="table-wrap">
               <table class="responsive-table">
-                <caption class="sr-only">Held-out suite results</caption>
+                <caption class="sr-only">
+                  <span class="lang-zh">Held-out 套件结果</span>
+                  <span class="lang-en">Held-out suite results</span>
+                </caption>
                 <thead>
                   <tr>
                     <th>Baseline</th>

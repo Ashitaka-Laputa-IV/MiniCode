@@ -96,10 +96,6 @@ pre {
   border-radius: 4px;
 }
 
-[id] {
-  scroll-margin-top: 88px;
-}
-
 .skip-link {
   position: fixed;
   left: 14px;
