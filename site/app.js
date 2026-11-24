@@ -60,6 +60,12 @@
     document.title = titles[lang];
     const description = document.querySelector('meta[name="description"]');
     if (description) description.setAttribute("content", descriptions[lang]);
+    const ogTitle = document.querySelector('meta[property="og:title"]');
+    if (ogTitle) ogTitle.setAttribute("content", titles[lang]);
+    const ogDescription = document.querySelector('meta[property="og:description"]');
+    if (ogDescription) {
+      ogDescription.setAttribute("content", descriptions[lang]);
+    }
     const nav = document.querySelector(".nav");
     if (nav) {
       nav.setAttribute("aria-label", lang === "zh" ? "主导航" : "Primary navigation");
