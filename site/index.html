@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="zh-CN" data-lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MiniCode — terminal-native coding agent</title>
+    <meta
+      name="description"
+      content="MiniCode is a terminal-native coding agent built on Deep Agents: permission modes, HITL approvals, checkpoints, and offline evals."
+    />
+    <meta name="theme-color" content="#060a09" />
+    <link rel="canonical" href="https://ashitaka-laputa-iv.github.io/MiniCode/" />
+    <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="MiniCode — terminal-native coding agent" />
+    <meta
+      property="og:description"
+      content="A small Python coding agent built on Deep Agents, with permission modes, HITL approvals, checkpoints, and offline evals."
+    />
+    <meta property="og:url" content="https://ashitaka-laputa-iv.github.io/MiniCode/" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">
+      <span class="lang-zh">跳到正文</span>
+      <span class="lang-en">Skip to content</span>
+    </a>
+
+    <header class="site-header">
+      <nav class="nav" aria-label="Primary">
+        <a class="brand" href="#top" aria-label="MiniCode 首页 / MiniCode home">
+          <span class="brand-mark" aria-hidden="true">&gt;_</span>
+          <span>MiniCode</span>
+        </a>
+        <div class="nav-links">
+          <a href="#features"><span class="lang-zh">特性</span><span class="lang-en">Features</span></a>
+          <a href="#permissions"><span class="lang-zh">权限</span><span class="lang-en">Permissions</span></a>
+          <a href="#evals"><span class="lang-zh">评测</span><span class="lang-en">Evals</span></a>
+          <a href="#case-study"><span class="lang-zh">案例</span><span class="lang-en">Case study</span></a>
+          <a href="#docs"><span class="lang-zh">文档</span><span class="lang-en">Docs</span></a>
+        </div>
+        <div class="nav-actions">
+          <div class="lang-toggle" role="group" aria-label="Language / 语言">
+            <button type="button" data-lang-button="zh" aria-pressed="true">中</button>
+            <button type="button" data-lang-button="en" aria-pressed="false">EN</button>
+          </div>
+          <a
+            class="btn btn-small btn-ghost"
+            href="https://github.com/Ashitaka-Laputa-IV/MiniCode"
+            target="_blank"
+            rel="noreferrer"
+            >GitHub</a
+          >
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top">
+        <div class="hero-copy">
+          <p class="eyebrow">
+            <span class="pulse" aria-hidden="true"></span>
+            <span class="lang-zh">开源 · MIT · Python 3.13</span>
+            <span class="lang-en">Open source · MIT · Python 3.13</span>
+          </p>
+          <h1>MiniCode</h1>
+          <p class="hero-lede lang-zh">
+            基于 Deep Agents 的终端 coding agent。<br />
+            权限、检查点与离线评测，都在一个精简的 Python 包里。
+          </p>
+          <p class="hero-lede lang-en">
+            A terminal-native coding agent built on Deep Agents.<br />
+            Permissions, checkpoints, and offline evals in one small Python
+            package.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#quickstart">
+              <span class="lang-zh">快速开始</span>
+              <span class="lang-en">Get started</span>
+            </a>
+            <a
+              class="btn btn-ghost"
+              href="https://github.com/Ashitaka-Laputa-IV/MiniCode"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span class="lang-zh">查看源码</span>
+              <span class="lang-en">View source</span>
+            </a>
+          </div>
+          <ul class="badges" aria-label="项目信息 / Project facts">
+            <li>
+              <strong>20</strong>
+              <span class="lang-zh">held-out 任务</span>
+              <span class="lang-en">held-out tasks</span>
+            </li>
+            <li>
+              <strong>6</strong>
+              <span class="lang-zh">评测基线</span>
+              <span class="lang-en">baselines</span>
+            </li>
+            <li>
+              <strong>11 + 9</strong>
+              <span class="lang-zh">Python / JS</span>
+              <span class="lang-en">Python / JS</span>
+            </li>
+            <li>
+              <strong>MIT</strong>
+              <span class="lang-zh">许可证</span>
+              <span class="lang-en">license</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="terminal" aria-label="MiniCode 会话示例 / Illustrative MiniCode session">
+          <div class="terminal-bar">
+            <span class="dot red"></span>
+            <span class="dot yellow"></span>
+            <span class="dot green"></span>
+            <span class="terminal-title">minicode</span>
+          </div>
+          <pre class="terminal-body"><code><span class="t-prompt">$</span> <span class="t-cmd">uv run minicode "fix the failing test"</span>
+<span class="t-dim">●</span> permissions: <span class="t-accent">ask</span>
+<span class="t-dim">→</span> read_file   <span class="t-file">src/calc.py</span>
+<span class="t-dim">→</span> edit_file   <span class="t-file">src/calc.py</span>
+<span class="t-warn">?</span> approve     <span class="t-cmd">uv run pytest -q</span>
+<span class="t-ok">✓</span> 12 passed
+<span class="t-cursor">▌</span></code></pre>
+          <p class="terminal-note lang-zh">
+            示意输出；实际工具调用与审批取决于任务和权限模式。
+          </p>
+          <p class="terminal-note lang-en">
+            Illustrative output; real tool calls and approvals depend on the task
+            and permission mode.
+          </p>
+        </div>
+      </section>
+
+      <section class="section" id="quickstart">
+        <div class="section-head">
+          <p class="section-kicker">Quickstart</p>
+          <h2>
+            <span class="lang-zh">一分钟跑起来</span>
+            <span class="lang-en">Run it in a minute</span>
+          </h2>
+          <p class="section-lede lang-zh">
+            需要 Python 3.13、uv 和默认模型的 <code>DEEPSEEK_API_KEY</code>；
+            也可以通过 <code>--model</code> 切换。
+          </p>
+          <p class="section-lede lang-en">
+            Requires Python 3.13, uv, and <code>DEEPSEEK_API_KEY</code> for the
+            default model; switch with <code>--model</code>.
+          </p>
+        </div>
+
+        <div class="grid two">
+          <div class="card code-card">
+            <div class="card-head">
+              <h3>
+                <span class="lang-zh">安装与运行</span>
+                <span class="lang-en">Install and run</span>
+              </h3>
+              <button class="copy-btn" type="button" data-copy-target="code-install">
+                <span class="copy-idle">
+                  <span class="lang-zh">复制</span>
+                  <span class="lang-en">Copy</span>
+                </span>
+                <span class="copy-done">
+                  <span class="lang-zh">已复制</span>
+                  <span class="lang-en">Copied</span>
+                </span>
+              </button>
+            </div>
+            <pre><code id="code-install">git clone https://github.com/Ashitaka-Laputa-IV/MiniCode.git
+cd MiniCode
+uv sync
+export DEEPSEEK_API_KEY="..."   # or set it in .env
+uv run minicode "fix the failing test"</code></pre>
+          </div>
+
+          <div class="card code-card">
+            <div class="card-head">
+              <h3>
+                <span class="lang-zh">REPL 与模型</span>
+                <span class="lang-en">REPL and models</span>
+              </h3>
+              <button class="copy-btn" type="button" data-copy-target="code-models">
+                <span class="copy-idle">
+                  <span class="lang-zh">复制</span>
+                  <span class="lang-en">Copy</span>
+                </span>
+                <span class="copy-done">
+                  <span class="lang-zh">已复制</span>
+                  <span class="lang-en">Copied</span>
+                </span>
+              </button>
+            </div>
+            <pre><code id="code-models"># interactive REPL
+uv run minicode -i
+
+# OpenCode Go
+export OPENCODE_GO_API_KEY="..."
+uv run minicode \
+  --model opencode-go:deepseek-v4.1-flash \
+  "review this change"</code></pre>
+          </div>
+        </div>
+
+        <div class="callout">
+          <p class="lang-zh">
+            <strong>提示：</strong> CLI 会加载当前目录或祖先目录的
+            <code>.env</code>，但只应用 <code>MINICODE_MODEL</code> 和已知
+            provider key；shell 子进程不会继承 provider key。
+          </p>
+          <p class="lang-en">
+            <strong>Note:</strong> the CLI loads <code>.env</code> from the
+            current or an ancestor directory, but only applies
+            <code>MINICODE_MODEL</code> and known provider keys; shell
+            subprocesses do not inherit provider keys.
+          </p>
+        </div>
+      </section>
+
+      <section class="section" id="features">
+        <div class="section-head">
+          <p class="section-kicker">Features</p>
+          <h2>
+            <span class="lang-zh">小，但把关键路径做完整</span>
+            <span class="lang-en">Small, with the important paths covered</span>
+          </h2>
+          <p class="section-lede lang-zh">
+            不是另一个通用 agent 框架，而是一个可以读懂、可以审查、可以恢复的终端编码循环。
+          </p>
+          <p class="section-lede lang-en">
+            Not another general-purpose agent framework: a terminal coding loop
+            you can read, audit, and resume.
+          </p>
+        </div>
+
+        <div class="grid three">
+          <article class="card feature">
+            <span class="feature-icon" aria-hidden="true">01</span>
+            <h3>
+              <span class="lang-zh">三种权限模式</span>
+              <span class="lang-en">Three permission modes</span>
+            </h3>
+            <p class="lang-zh">
+              <code>read-only</code>、<code>ask</code>、<code>yolo</code>
+              在执行前经过策略判断，危险动作不会悄悄发生。
+            </p>
+            <p class="lang-en">
+              <code>read-only</code>, <code>ask</code>, and
+              <code>yolo</code> are decided before execution, so risky actions
+              do not happen silently.
+            </p>
+          </article>
+
+          <article class="card feature">
+            <span class="feature-icon" aria-hidden="true">02</span>
+            <h3>
+              <span class="lang-zh">HITL 审批</span>
+              <span class="lang-en">Human-in-the-loop</span>
+            </h3>
+            <p class="lang-zh">
+              LangGraph interrupt 在写入和风险 shell 前暂停，审批通过后继续同一条消息链。
+            </p>
+            <p class="lang-en">
+              LangGraph interrupts pause before writes and risky shell commands,
+              then resume the same message thread after approval.
+            </p>
+          </article>
+
+          <article class="card feature">
+            <span class="feature-icon" aria-hidden="true">03</span>
+            <h3>
+              <span class="lang-zh">检查点与恢复</span>
+              <span class="lang-en">Checkpoint and resume</span>
+            </h3>
+            <p class="lang-zh">
+              REPL 与启用 checkpoint 的评测基线用 SQLite saver 保存每一步状态；中断、失败或重启后可以回到同一个
+              thread。
+            </p>
+            <p class="lang-en">
+              The REPL and checkpoint-enabled eval baselines use a SQLite saver
+              for each step; after an interrupt, failure, or restart you can
+              return to the same thread.
+            </p>
+          </article>
+
+          <article class="card feature">
+            <span class="feature-icon" aria-hidden="true">04</span>
+            <h3>
+              <span class="lang-zh">Shell 护栏</span>
+              <span class="lang-en">Shell guardrails</span>
+            </h3>
+            <p class="lang-zh">
+              allow-list、hard deny-list 和过滤后的环境变量，把 provider key
+              挡在子进程之外。
+            </p>
+            <p class="lang-en">
+              Allow-lists, hard deny-lists, and a filtered environment keep
+              provider keys out of child processes.
+            </p>
+          </article>
+
+          <article class="card feature">
+            <span class="feature-icon" aria-hidden="true">05</span>
+            <h3>
+              <span class="lang-zh">离线评测</span>
+              <span class="lang-en">Offline evals</span>
+            </h3>
+            <p class="lang-zh">
+              smoke/held-out 输出 pass@k、token、成本、失败分类和 trace；security/recovery
+              输出阻断、泄露和恢复指标。
+            </p>
+            <p class="lang-en">
+              Smoke and held-out report pass@k, tokens, cost, failure classes,
+              and traces; security and recovery report block, leak, and recovery
+              metrics.
+            </p>
+          </article>
+
+          <article class="card feature">
+            <span class="feature-icon" aria-hidden="true">06</span>
+            <h3>
+              <span class="lang-zh">Provider 与子智能体</span>
+              <span class="lang-en">Providers and subagents</span>
+            </h3>
+            <p class="lang-zh">
+              默认接 DeepSeek，也支持 OpenCode Go；需要时把任务分给
+              <code>task</code> 子智能体。
+            </p>
+            <p class="lang-en">
+              DeepSeek by default, OpenCode Go when you want it, and
+              <code>task</code> subagents when a job should be delegated.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="permissions">
+        <div class="section-head">
+          <p class="section-kicker">Permissions</p>
+          <h2>
+            <span class="lang-zh">先决定，再执行</span>
+            <span class="lang-en">Decide first, execute second</span>
+          </h2>
+          <p class="section-lede lang-zh">
+            权限策略是 guardrail，不是 sandbox。不可信任务仍然需要容器或 VM。
+          </p>
+          <p class="section-lede lang-en">
+            Policy is a guardrail, not a sandbox. Untrusted work still belongs in
+            a container or VM.
+          </p>
+        </div>
+
+        <div class="card table-card">
+          <div class="table-wrap">
+            <table class="responsive-table">
+              <caption class="sr-only">
+                <span class="lang-zh">权限模式</span>
+                <span class="lang-en">Permission modes</span>
+              </caption>
+              <thead>
+                <tr>
+                  <th><span class="lang-zh">模式</span><span class="lang-en">Mode</span></th>
+                  <th><span class="lang-zh">文件写入</span><span class="lang-en">File writes</span></th>
+                  <th><span class="lang-zh">Shell</span><span class="lang-en">Shell</span></th>
+                  <th><span class="lang-zh">HITL</span><span class="lang-en">HITL</span></th>
+                  <th><span class="lang-zh">适用场景</span><span class="lang-en">Best for</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>read-only</code></td>
+                  <td><span class="lang-zh">拒绝</span><span class="lang-en">Blocked</span></td>
+                  <td><span class="lang-zh">仅安全 allow-list</span><span class="lang-en">Safe allow-list only</span></td>
+                  <td><span class="lang-zh">无</span><span class="lang-en">No</span></td>
+                  <td><span class="lang-zh">审查、阅读、分析</span><span class="lang-en">Review, reading, analysis</span></td>
+                </tr>
+                <tr>
+                  <td><code>ask</code> <span class="tag">default</span></td>
+                  <td><span class="lang-zh">需要审批</span><span class="lang-en">Approval</span></td>
+                  <td><span class="lang-zh">风险命令需审批</span><span class="lang-en">Risky commands ask</span></td>
+                  <td><span class="lang-zh">有</span><span class="lang-en">Yes</span></td>
+                  <td><span class="lang-zh">日常编码</span><span class="lang-en">Day-to-day coding</span></td>
+                </tr>
+                <tr>
+                  <td><code>yolo</code></td>
+                  <td><span class="lang-zh">允许</span><span class="lang-en">Allowed</span></td>
+                  <td><span class="lang-zh">仅 hard deny-list</span><span class="lang-en">Hard deny-list only</span></td>
+                  <td><span class="lang-zh">无</span><span class="lang-en">No</span></td>
+                  <td><span class="lang-zh">可信自动化、评测</span><span class="lang-en">Trusted automation, evals</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <p class="fineprint">
+          <span class="lang-zh">
+            完整决策顺序、allow-list 语义和新增工具接入清单见
+            <a class="text-link" href="https://github.com/Ashitaka-Laputa-IV/MiniCode/blob/dev/docs/permissions.md">docs/permissions.md</a>。
+          </span>
+          <span class="lang-en">
+            See
+            <a class="text-link" href="https://github.com/Ashitaka-Laputa-IV/MiniCode/blob/dev/docs/permissions.md">docs/permissions.md</a>
+            for the decision order, allow-list semantics, and the checklist for
+            adding tools.
+          </span>
+        </p>
+      </section>
+
+      <section class="section" id="architecture">
+        <div class="section-head">
+          <p class="section-kicker">Architecture</p>
+          <h2>
+            <span class="lang-zh">一条清楚的调用链</span>
+            <span class="lang-en">A traceable call chain</span>
+          </h2>
+          <p class="section-lede lang-zh">
+            CLI 把任务交给 Deep Agents；策略层包住 shell backend；HITL 和 checkpointer
+            在旁边守住状态。
+          </p>
+          <p class="section-lede lang-en">
+            The CLI hands work to Deep Agents; a policy layer wraps the shell
+            backend, with HITL and a checkpointer holding the state.
+          </p>
+        </div>
+
+        <div class="arch">
+          <div class="arch-chain">
+            <div class="arch-node">
+              <strong>CLI / REPL</strong>
+              <span class="lang-zh">解析参数、加载 .env、选择权限模式</span>
+              <span class="lang-en">Parse args, load .env, choose permission mode</span>
+            </div>
+            <div class="arch-node">
+              <strong>create_deep_agent</strong>
+              <span class="lang-zh">系统提示、规划、文件/shell/子智能体工具</span>
+              <span class="lang-en">System prompt, planning, file/shell/subagent tools</span>
+            </div>
+            <div class="arch-node">
+              <strong>PolicyShellBackend</strong>
+              <span class="lang-zh">在 LocalShellBackend 外做策略判断</span>
+              <span class="lang-en">Policy decisions around LocalShellBackend</span>
+            </div>
+            <div class="arch-node">
+              <strong>Workspace</strong>
+              <span class="lang-zh">读写文件、运行命令、返回结果</span>
+              <span class="lang-en">Read and write files, run commands, return results</span>
+            </div>
+          </div>
+          <div class="arch-side">
+            <div class="arch-node">
+              <strong>HITL approver</strong>
+              <span class="lang-zh">approve / reject</span>
+              <span class="lang-en">approve / reject</span>
+            </div>
+            <div class="arch-node">
+              <strong>SQLite checkpointer</strong>
+              <span class="lang-zh">thread 级状态与恢复</span>
+              <span class="lang-en">Thread-level state and resume</span>
+            </div>
+            <div class="arch-node">
+              <strong>Eval worker</strong>
+              <span class="lang-zh">隔离 fixture、隐藏测试、trace</span>
+              <span class="lang-en">Isolated fixtures, hidden tests, traces</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="evals">
+        <div class="section-head">
+          <p class="section-kicker">Evals</p>
+          <h2>
+            <span class="lang-zh">用数字看回归，而不是讲故事</span>
+            <span class="lang-en">Regression numbers, not a story</span>
+          </h2>
+          <p class="section-lede lang-zh">
+            四个离线套件（smoke、held-out、security、recovery）和六个 smoke
+            基线。样本小、任务由本仓库策划，数字只用于回归跟踪，不是 benchmark
+            排名或 SOTA 结论。
+          </p>
+          <p class="section-lede lang-en">
+            Four offline suites (smoke, held-out, security, recovery) and six
+            smoke baselines. The samples are small and repository-authored; use
+            the numbers for regression tracking, not as a benchmark ranking or a
+            SOTA claim.
+          </p>
+        </div>
+
+        <div class="eval-grid">
+          <div class="card table-card">
+            <div class="card-head">
+              <h3>Smoke · 20 tasks</h3>
+              <span class="tag">2026-11-18</span>
+            </div>
+            <div class="table-wrap">
+              <table class="responsive-table">
+                <caption class="sr-only">
+                  <span class="lang-zh">Smoke 套件结果</span>
+                  <span class="lang-en">Smoke suite results</span>
+                </caption>
+                <thead>
+                  <tr>
+                    <th>Baseline</th>
+                    <th class="num">pass@1</th>
+                    <th class="num">pass@3</th>
+                    <th class="num">tools/run</th>
+                    <th class="num">cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>bare</code></td>
+                    <td class="num">0/20</td>
+                    <td class="num">n/a</td>
+                    <td class="num">0.00</td>
+                    <td class="num">$0.0103</td>
+                  </tr>
+                  <tr>
+                    <td><code>deepagents-default</code></td>
+                    <td class="num">17/20</td>
+                    <td class="num">n/a</td>
+                    <td class="num">15.95</td>
+                    <td class="num">$0.0427</td>
+                  </tr>
+                  <tr>
+                    <td><code>minicode-yolo</code></td>
+                    <td class="num">60/60</td>
+                    <td class="num">100%</td>
+                    <td class="num">12.00</td>
+                    <td class="num">$0.0874</td>
+                  </tr>
+                  <tr>
+                    <td><code>minicode-ask</code></td>
+                    <td class="num">59/60</td>
+                    <td class="num">100%</td>
+                    <td class="num">12.33</td>
+                    <td class="num">$0.0950</td>
+                  </tr>
+                  <tr>
+                    <td><code>minicode-no-checkpoint</code></td>
+                    <td class="num">60/60</td>
+                    <td class="num">100%</td>
+                    <td class="num">11.22</td>
+                    <td class="num">$0.0806</td>
+                  </tr>
+                  <tr>
+                    <td><code>minicode-no-subagents</code></td>
+                    <td class="num">60/60</td>
+                    <td class="num">100%</td>
+                    <td class="num">12.17</td>
+                    <td class="num">$0.0860</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="fineprint">
+              <span class="lang-zh">
+                四个 MiniCode 基线各 3 次尝试；bare 与 deepagents 各 1 次。模型
+                opencode-go:deepseek-v4.1-flash。
+              </span>
+              <span class="lang-en">
+                Four MiniCode baselines used three attempts; bare and
+                deepagents used one. Model:
+                opencode-go:deepseek-v4.1-flash.
+              </span>
+            </p>
+          </div>
+
+          <div class="card table-card">
+            <div class="card-head">
+              <h3>Held-out · 20 tasks</h3>
+              <span class="tag">2026-11-18</span>
+            </div>
+            <div class="table-wrap">
+              <table class="responsive-table">
+                <caption class="sr-only">
+                  <span class="lang-zh">Held-out 套件结果</span>
+                  <span class="lang-en">Held-out suite results</span>
+                </caption>
+                <thead>
+                  <tr>
+                    <th>Baseline</th>
+                    <th class="num">pass@1</th>
+                    <th class="num">pass@k</th>
+                    <th class="num">tools/run</th>
+                    <th class="num">cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>minicode-yolo</code></td>
+                    <td class="num">40/40</td>
+                    <td class="num">100%</td>
+                    <td class="num">10.85</td>
+                    <td class="num">$0.0488</td>
+                  </tr>
+                  <tr>
+                    <td><code>minicode-ask</code></td>
+                    <td class="num">20/20</td>
+                    <td class="num">n/a</td>
+                    <td class="num">11.35</td>
+                    <td class="num">$0.0267</td>
+                  </tr>
+                  <tr>
+                    <td><code>minicode-no-subagents</code></td>
+                    <td class="num">20/20</td>
+                    <td class="num">n/a</td>
+                    <td class="num">11.30</td>
+                    <td class="num">$0.0261</td>
+                  </tr>
+                  <tr>
+                    <td><code>deepagents-default</code></td>
+                    <td class="num">14/20</td>
+                    <td class="num">n/a</td>
+                    <td class="num">17.10</td>
+                    <td class="num">$0.0409</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="fineprint">
+              <span class="lang-zh">
+                11 Python + 9 JavaScript；pass@1 单元格为 passed/runs。yolo 2 次尝试，其余
+                1 次；单次尝试不估算 pass@k。
+              </span>
+              <span class="lang-en">
+                11 Python + 9 JavaScript; the pass@1 cell is passed/runs. Yolo
+                used two attempts, the rest one; pass@k is not estimated from a
+                single attempt.
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <div class="grid two eval-notes">
+          <article class="card stat-card">
+            <span class="stat-label">Security · minicode-ask</span>
+            <span class="stat-value">11/18</span>
+            <p class="lang-zh">
+              单次安全套件：block rate 57.1%，误报率 25%，4 个 canary 泄露。审批器是协作式
+              scripted policy，不是 sandbox。
+            </p>
+            <p class="lang-en">
+              Single security run: 57.1% block rate, 25% false positives, and 4
+              canary leaks. The approver is a cooperative scripted policy, not a
+              sandbox.
+            </p>
+          </article>
+          <article class="card stat-card">
+            <span class="stat-label">Recovery · minicode-ask</span>
+            <span class="stat-value">1/1</span>
+            <p class="lang-zh">
+              在 HITL 中断后从同一 SQLite thread 恢复；重复工具调用 0 次，
+              no-checkpoint 对照按预期失败。
+            </p>
+            <p class="lang-en">
+              Resumed from the same SQLite thread after a HITL interrupt; zero
+              repeated tool calls, and the no-checkpoint control failed as
+              expected.
+            </p>
+          </article>
+        </div>
+
+        <p class="fineprint">
+          <span class="lang-zh">
+            完整表格、失败分析和局限：
+            <a class="text-link" href="https://github.com/Ashitaka-Laputa-IV/MiniCode/blob/dev/docs/results-2026-11-18.md">smoke / security / recovery</a>
+            与
+            <a class="text-link" href="https://github.com/Ashitaka-Laputa-IV/MiniCode/blob/dev/docs/heldout-results-2026-11-18.md">held-out</a>。
+            原始 JSON/log 在
+            <a class="text-link" href="https://github.com/Ashitaka-Laputa-IV/MiniCode/releases">releases</a>。
+          </span>
+          <span class="lang-en">
+            Full tables, failure analysis, and limitations:
+            <a class="text-link" href="https://github.com/Ashitaka-Laputa-IV/MiniCode/blob/dev/docs/results-2026-11-18.md">smoke / security / recovery</a>
+            and
+            <a class="text-link" href="https://github.com/Ashitaka-Laputa-IV/MiniCode/blob/dev/docs/heldout-results-2026-11-18.md">held-out</a>.
+            Raw JSON and logs are in
+            <a class="text-link" href="https://github.com/Ashitaka-Laputa-IV/MiniCode/releases">releases</a>.
+          </span>
+        </p>
+      </section>
+
+      <section class="section" id="case-study">
+        <div class="section-head">
+          <p class="section-kicker">Case study</p>
+          <h2>
+            <span class="lang-zh">一个真实的 Link header bug</span>
+            <span class="lang-en">A real Link header bug</span>
+          </h2>
+          <p class="section-lede lang-zh">
+            从 psf/requests 最小化出来的 fixture：URL 里的逗号被错误拆成两个 Link。
+          </p>
+          <p class="section-lede lang-en">
+            A minimized fixture from psf/requests: a comma inside a URL was split
+            into two bogus links.
+          </p>
+        </div>
+
+        <div class="case">
+          <div class="case-copy">
+            <p class="lang-zh">
+              上游 issue
+              <a class="text-link" href="https://github.com/psf/requests/issues/2250">#2250</a>
+              和 fix PR
+              <a class="text-link" href="https://github.com/psf/requests/pull/2271">#2271</a>
+              把这个行为改成只在逗号后紧跟 <code>&lt;</code> 时切分。MiniCode 在
+              <code>minicode-ask</code> 下完成修复，并留下审批和重试记录。
+            </p>
+            <p class="lang-en">
+              Upstream issue
+              <a class="text-link" href="https://github.com/psf/requests/issues/2250">#2250</a>
+              and fix PR
+              <a class="text-link" href="https://github.com/psf/requests/pull/2271">#2271</a>
+              changed this to split only when a comma is followed by
+              <code>&lt;</code>. MiniCode completed it under
+              <code>minicode-ask</code>, with approvals and a retry on record.
+            </p>
+            <ul class="case-stats">
+              <li>
+                <strong>12</strong>
+                <span class="lang-zh">工具调用</span>
+                <span class="lang-en">tool calls</span>
+              </li>
+              <li>
+                <strong>6</strong>
+                <span class="lang-zh">审批中断</span>
+                <span class="lang-en">approvals</span>
+              </li>
+              <li>
+                <strong>50.5s</strong>
+                <span class="lang-zh">耗时</span>
+                <span class="lang-en">wall time</span>
+              </li>
+              <li>
+                <strong>5</strong>
+                <span class="lang-zh">隐藏测试通过</span>
+                <span class="lang-en">hidden tests passed</span>
+              </li>
+            </ul>
+            <p class="fineprint">
+              <span class="lang-zh">
+                prompt 已明确建议 <code>re.split(", *&lt;", value)</code>；这里展示的是应用与验证，不是独立发现。
+              </span>
+              <span class="lang-en">
+                The prompt already suggests
+                <code>re.split(", *&lt;", value)</code>; this run applies and
+                verifies it rather than discovering it independently.
+              </span>
+            </p>
+            <a
+              class="text-link"
+              href="https://github.com/Ashitaka-Laputa-IV/MiniCode/blob/dev/docs/case-study-requests.md"
+              ><span class="lang-zh">阅读完整案例 →</span><span class="lang-en">Read the full case study →</span></a
+            >
+          </div>
+
+          <div class="card code-card">
+            <div class="card-head">
+              <h3>requests/utils.py · minimized</h3>
+              <span class="tag">v2.4.3</span>
+            </div>
+            <pre><code><span class="diff-del">- for val in value.split(","):</span>
+<span class="diff-add">+ for val in re.split(", *&lt;", value):</span></code></pre>
+            <p class="fineprint">
+              <span class="lang-zh">
+                最小化 fixture，保留 Apache-2.0 许可证和 pinned commit provenance。
+              </span>
+              <span class="lang-en">
+                Minimized fixture with Apache-2.0 license and pinned commit
+                provenance.
+              </span>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="docs">
+        <div class="section-head">
+          <p class="section-kicker">Docs</p>
+          <h2>
+            <span class="lang-zh">从这里继续</span>
+            <span class="lang-en">Keep reading</span>
+          </h2>
+        </div>
+
+        <div class="grid three">
+          <a
+            class="card link-card"
+            href="https://github.com/Ashitaka-Laputa-IV/MiniCode/blob/dev/README.md"
+          >
+            <h3>README <span class="arrow" aria-hidden="true">↗</span></h3>
+            <p class="lang-zh">安装、命令、权限模式和开发检查。</p>
+            <p class="lang-en">Setup, commands, permission modes, and dev checks.</p>
+          </a>
+          <a
+            class="card link-card"
+            href="https://github.com/Ashitaka-Laputa-IV/MiniCode/blob/dev/docs/architecture.md"
+          >
+            <h3>Architecture <span class="arrow" aria-hidden="true">↗</span></h3>
+            <p class="lang-zh">组件图、turn 调用链、持久化和评测链路。</p>
+            <p class="lang-en">Component map, turn flow, persistence, and eval chain.</p>
+          </a>
+          <a
+            class="card link-card"
+            href="https://github.com/Ashitaka-Laputa-IV/MiniCode/blob/dev/docs/permissions.md"
+          >
+            <h3>Permissions <span class="arrow" aria-hidden="true">↗</span></h3>
+            <p class="lang-zh">决策顺序、allow-list 和新增工具接入清单。</p>
+            <p class="lang-en">Decision order, allow-lists, and the tool checklist.</p>
+          </a>
+          <a
+            class="card link-card"
+            href="https://github.com/Ashitaka-Laputa-IV/MiniCode/blob/dev/SECURITY.md"
+          >
+            <h3>Security <span class="arrow" aria-hidden="true">↗</span></h3>
+            <p class="lang-zh">威胁模型、已有防护和已知限制。</p>
+            <p class="lang-en">Threat model, existing defenses, and known limits.</p>
+          </a>
+          <a
+            class="card link-card"
+            href="https://github.com/Ashitaka-Laputa-IV/MiniCode/blob/dev/evals/README.md"
+          >
+            <h3>Evals <span class="arrow" aria-hidden="true">↗</span></h3>
+            <p class="lang-zh">任务格式、suite 定义和隔离边界。</p>
+            <p class="lang-en">Task format, suite definitions, and isolation boundaries.</p>
+          </a>
+          <a
+            class="card link-card"
+            href="https://github.com/Ashitaka-Laputa-IV/MiniCode/releases"
+          >
+            <h3>Releases <span class="arrow" aria-hidden="true">↗</span></h3>
+            <p class="lang-zh">评测原始 JSON/log 和版本记录。</p>
+            <p class="lang-en">Raw eval JSON/logs and release history.</p>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>
+        <span class="brand-mark" aria-hidden="true">&gt;_</span>
+        MiniCode · MIT ·
+        <span class="lang-zh">基于 Deep Agents 构建</span>
+        <span class="lang-en">Built on Deep Agents</span>
+      </p>
+      <p class="fineprint lang-zh">
+        评测数字来自小型、策划的回归套件，不是通用 benchmark 或 SOTA 结论。
+      </p>
+      <p class="fineprint lang-en">
+        Eval numbers come from small curated regression suites, not a general
+        benchmark or a SOTA claim.
+      </p>
+      <p class="fineprint">© <span id="year">2026</span> Ashitaka-Laputa-IV</p>
+    </footer>
+
+    <div id="copy-status" class="sr-only" aria-live="polite"></div>
+  </body>
+</html>
